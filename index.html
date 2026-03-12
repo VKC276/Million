@@ -15,21 +15,34 @@
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; }
     
-    /* Förbättrad poäng-layout för att hålla "Beräknar" stilla */
-    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 100px; }
+    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 60px; }
     
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
     .locked { opacity: 0.4; pointer-events: none; }
     
-    /* FIX: Håll texten stilla, animera punkterna "utanför" layouten */
-    .calculating { color: #888 !important; font-size: 11px !important; font-weight: normal !important; position: relative; display: inline-block; }
-    .dots-container { position: relative; display: inline-block; width: 15px; text-align: left; }
+    /* ENBART PRICKAR ANIMERING */
+    .calculating { 
+      display: inline-flex; 
+      justify-content: flex-end; 
+      align-items: center; 
+      min-width: 30px; 
+    }
+    .dots-container { 
+      position: relative; 
+      display: inline-block; 
+      width: 15px; 
+      height: 20px;
+      text-align: left; 
+    }
     .dots:after {
       position: absolute;
       left: 0;
+      top: -2px;
       content: '';
       animation: dots 1.5s steps(4, end) infinite;
+      font-size: 24px;
+      color: #27ae60; /* Prickarna blir gröna som poängen */
     }
     @keyframes dots {
       0% { content: ''; }
@@ -63,7 +76,7 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   let currentTab = 'scorecard';
   let cachedData = null;
-  let timerInterval, refreshInterval;
+  let timerInterval;
   let requestQueue = [];
   let isProcessingQueue = false;
   let pendingRequestsCount = 0;
@@ -149,8 +162,8 @@
     let currentVal = parseInt(countSpan.innerText);
     countSpan.innerText = Math.max(0, currentVal + delta);
     
-    // FIX: Stabil HTML för Beräknar
-    const calcHtml = 'Beräknar<span class="dots-container"><span class="dots"></span></span>';
+    // NY FIX: Endast prickar, ingen text
+    const calcHtml = '<span class="dots-container"><span class="dots"></span></span>';
     
     ptsSpan.innerHTML = calcHtml;
     ptsSpan.classList.add('calculating');
