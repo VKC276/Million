@@ -5,203 +5,153 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
+    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
-    .btn-s:active { transform: scale(0.9); }
+    .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; }
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
-    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-    
-    #debug-log { 
-      margin-top: 50px; padding: 10px; background: #222; color: #0f0; 
-      font-family: monospace; font-size: 11px; border-radius: 5px; 
-      max-height: 150px; overflow-y: auto; display: block;
-    }
-    
-    #overlay { 
-      position: fixed; top:0; left:0; width:100%; height:100%; 
-      background:rgba(255,255,255,0.8); display:none; align-items:center; 
-      justify-content:center; z-index:100; font-weight: bold; 
-    }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
+    .tab-btn.active { background: #27ae60; }
+    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+    #overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.7); display:none; align-items:center; justify-content:center; z-index:100; font-weight:bold; }
   </style>
 </head>
 <body>
 
-<div id="overlay">Uppdaterar poäng...</div>
+<div id="overlay">Uppdaterar...</div>
 
-<div id="view-loading" class="view" style="display:block; text-align:center; padding-top: 50px;">
-  <strong style="font-size: 20px;">Miljontävlingen</strong>
-  <p id="loading-status">Ansluter till servern...</p>
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
+  <strong>Miljontävlingen</strong><br>Ansluter...
 </div>
 
 <div id="view-auth" class="view">
   <div class="card">
-    <h2 style="margin-top:0;">Öppna Scorecard</h2>
-    <p style="font-size: 14px; color: #666;">Ange dina uppgifter för att få din personliga tävlingslänk via e-post.</p>
+    <h2>Registrering</h2>
     <input type="text" id="name" placeholder="Namn">
     <input type="email" id="email" placeholder="E-post">
-    <input type="number" id="length" placeholder="Din längd (cm)">
-    <button class="btn" onclick="handleLogin()">Skicka länk</button>
-    <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din mejl!</p>
+    <input type="number" id="length" placeholder="Längd (cm)">
+    <button class="btn" onclick="handleLogin()">Skicka personlig länk</button>
+    <p id="msg" style="display:none; color:green; text-align:center;">Kolla din e-post!</p>
   </div>
 </div>
 
 <div id="view-app" class="view">
   <div id="header-box"></div>
-  <div id="list"></div>
-</div>
+  
+  <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
+    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Scorecard</button>
+    <button id="btn-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
+    <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
+  </div>
 
-<div class="view" style="display:block;">
-  <div id="debug-log">Systemlogg startad...</div>
+  <div id="list"></div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
-  
-  function log(msg) {
-    const logDiv = document.getElementById('debug-log');
-    logDiv.innerHTML += "<br>> " + msg;
-    logDiv.scrollTop = logDiv.scrollHeight;
-    console.log(msg);
-  }
-
-  // Hämta token från URL
-  function getCleanToken() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const t = urlParams.get('token');
-    if (t && t.length > 5 && !t.includes("<?")) return t;
-    return null;
-  }
-
-  const currentToken = getCleanToken();
+  let currentTab = 'scorecard';
+  let cachedData = null;
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
 
   window.onload = () => {
-    log("App laddad. Domän: " + window.location.hostname);
-    if (currentToken) {
-      log("Token identifierad. Hämtar data...");
-      fetchData();
-    } else {
-      log("Ingen token hittad. Visar registrering.");
-      switchView('auth');
-    }
+    if (token && token.length > 5) fetchData();
+    else switchView('auth');
   };
 
-  async function apiCall(params) {
-    const query = new URLSearchParams(params).toString();
-    const url = `${API_URL}?${query}`;
-    log("Anropar: " + params.action);
-    
+  async function fetchData() {
     try {
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error("Serverfel: " + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      log("Svar mottaget: " + params.action);
-      return data;
-    } catch (e) {
-      log("FEL: " + e.message);
-      throw e;
+      const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+      cachedData = await res.json();
+      if (cachedData.error === "AUTH_REQUIRED") return switchView('auth');
+      render();
+      switchView('app');
+    } catch (e) { alert("Anslutningsfel"); }
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('btn-' + tab).classList.add('active');
+    render();
+  }
+
+  async function updateScore(pId, delta) {
+    document.getElementById('overlay').style.display = 'flex';
+    const action = delta > 0 ? 'registerSend' : 'removeSend';
+    try {
+      const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${pId}`);
+      cachedData = await res.json();
+      render();
+    } catch (e) { alert("Kunde inte spara"); }
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  function render() {
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    const d = cachedData;
+
+    if (currentTab === 'scorecard') {
+      let total = 0;
+      d.problems.forEach(p => {
+        const count = d.userSends[p.id] || 0;
+        const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1)) * d.currentUser.factor;
+        const pts = Math.round(shares * (d.problemValues[p.id]?.valuePerShare || 0));
+        total += pts;
+        list.innerHTML += `<div class="card">
+          <span class="p-val">${pts.toLocaleString()} p</span>
+          <strong>#${p.id} ${p.name}</strong>
+          <div class="stepper">
+            <button class="btn-s" onclick="updateScore('${p.id}', -1)">−</button>
+            <span style="font-size:20px; font-weight:bold;">${count}</span>
+            <button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button>
+          </div>
+        </div>`;
+      });
+      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div><small>HCP: ${d.currentUser.factor.toFixed(2)}</small><br><strong>${d.currentUser.name}</strong></div>
+          <div style="text-align:right;"><small>DIN VINST</small><br><strong style="font-size:20px; color:#2ecc71;">${total.toLocaleString()} p</strong></div>
+        </div>
+      </div>`;
+
+    } else if (currentTab === 'market') {
+      d.problems.forEach(p => {
+        const val = Math.round(d.problemValues[p.id]?.valuePerShare || d.potPerProblem);
+        const shares = d.problemValues[p.id]?.totalShares || 0;
+        list.innerHTML += `<div class="card">
+          <div style="color:#27ae60; font-weight:900; float:right;">${val.toLocaleString()} p</div>
+          <strong>#${p.id} ${p.name}</strong><br>
+          <small style="color:#888;">Totalt i omlopp: ${shares.toFixed(2)} andelar</small>
+        </div>`;
+      });
+
+    } else if (currentTab === 'leaderboard') {
+      d.leaderboard.forEach((u, i) => {
+        const isMe = u.name === d.currentUser.name;
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${isMe ? 'border:2px solid #27ae60;' : ''}">
+          <span>${i+1}. ${u.name}</span>
+          <strong>${u.score.toLocaleString()} p</strong>
+        </div>`;
+      });
     }
   }
 
-  async function fetchData() {
-    document.getElementById('loading-status').innerText = "Hämtar ditt scorecard...";
-    try {
-      const data = await apiCall({ action: 'getAppData', token: currentToken });
-      render(data);
-      switchView('app');
-    } catch (e) {
-      document.getElementById('loading-status').innerText = "Kunde inte ladda data. Se logg.";
-    }
+  function switchView(id) {
+    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+    document.getElementById('view-' + id).style.display = 'block';
   }
 
   async function handleLogin() {
     const n = document.getElementById('name').value;
     const e = document.getElementById('email').value;
     const l = document.getElementById('length').value;
-    if(!n || !e || !l) return alert("Fyll i alla fält");
-
-    log("Skickar inloggningsförfrågan...");
-    try {
-      const res = await apiCall({ action: 'requestLogin', name: n, email: e, length: l });
-      if(res.success) {
-        document.getElementById('msg').style.display = 'block';
-        log("E-post skickad till: " + e);
-      }
-    } catch (err) {
-      alert("Kunde inte skicka länk. Kontrollera din anslutning.");
-    }
-  }
-
-  async function updateScore(pId, delta) {
-    document.getElementById('overlay').style.display = 'flex';
-    try {
-      const data = await apiCall({ 
-        action: delta > 0 ? 'registerSend' : 'removeSend', 
-        token: currentToken, 
-        pId: pId 
-      });
-      render(data);
-    } catch (e) {
-      alert("Kunde inte spara. Försök igen.");
-    }
-    document.getElementById('overlay').style.display = 'none';
-  }
-
-  function render(data) {
-    let totalScore = 0;
-    const list = document.getElementById('list');
-    list.innerHTML = '';
-    
-    data.problems.forEach(p => {
-      const mySendCount = data.userSends[p.id] || 0;
-      
-      // LOGIK: Beräkna dina personliga andelar (1.0 - 2.0)
-      const sendShares = mySendCount <= 0 ? 0 : 
-                         (mySendCount >= 10 ? 2.0 : 1.0 + (mySendCount - 1) * 0.1);
-      
-      // LOGIK: Viktade andelar (Dina sends * Ditt handicap)
-      const myWeightedShares = sendShares * data.currentUser.factor;
-      
-      // LOGIK: Värde per andel (Pott / Totala viktade andelar på problemet)
-      const valPerShare = data.problemValues[p.id]?.valuePerShare || 0;
-      
-      const points = Math.round(myWeightedShares * valPerShare);
-      totalScore += points;
-      
-      list.innerHTML += `
-        <div class="card">
-          <span class="p-val">${points.toLocaleString()} p</span>
-          <div style="font-weight:bold; font-size:1.1em;">#${p.id} ${p.name}</div>
-          <div class="stepper">
-            <button class="btn-s" onclick="updateScore('${p.id}', -1)" style="background:#eee; color:#333;">−</button>
-            <span style="font-size:22px; font-weight:bold;">${mySendCount}</span>
-            <button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button>
-          </div>
-        </div>`;
-    });
-
-    document.getElementById('header-box').innerHTML = `
-      <div class="card" style="background:#2c3e50; color:white; border:none; display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-weight:bold; font-size:1.2em;">${data.currentUser.name}</div>
-          <div style="font-size:11px; opacity:0.8;">HCP-FAKTOR: ${data.currentUser.factor.toFixed(2)}</div>
-        </div>
-        <div style="text-align:right;">
-          <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">DIN VINST</div>
-          <div style="font-size:24px; font-weight:900; color:#2ecc71;">${totalScore.toLocaleString()}</div>
-        </div>
-      </div>`;
-  }
-
-  function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => {
-      if(v.id !== 'debug-log-parent') v.style.display = 'none';
-    });
-    document.getElementById('view-' + id).style.display = 'block';
+    if(!n || !e || !l) return alert("Fyll i allt");
+    await fetch(`${API_URL}?action=requestLogin&name=${n}&email=${e}&length=${l}`);
+    document.getElementById('msg').style.display = 'block';
   }
 </script>
 </body>
