@@ -17,7 +17,6 @@
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 60px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
-    .locked { opacity: 0.4; pointer-events: none; }
     
     /* Admin UI */
     .admin-nav { display: flex; gap: 5px; margin-bottom: 15px; }
@@ -28,8 +27,7 @@
     td, th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
 
     /* Animering prickar */
-    .calculating { display: inline-flex; justify-content: flex-end; align-items: center; min-width: 30px; }
-    .dots-container { position: relative; display: inline-block; width: 15px; height: 20px; text-align: left; }
+    .dots-container { position: relative; display: inline-block; width: 15px; height: 20px; }
     .dots:after {
       position: absolute; left: 0; top: -2px; content: '';
       animation: dots 1.5s steps(4, end) infinite; font-size: 24px; color: #27ae60;
@@ -55,7 +53,7 @@
 </div>
 
 <div id="view-admin" class="view">
-  <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between;">
+  <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
     <strong>ADMIN PANEL</strong><div id="admin-status"></div>
   </div>
   <div class="admin-nav">
@@ -72,6 +70,11 @@
       <label>Slut</label><input type="datetime-local" id="adm-end">
       <button class="btn" onclick="saveSettings()" style="background:#2980b9">Spara inställningar</button>
     </div>
+    <div class="card" style="border: 2px solid #c0392b; margin-top: 40px;">
+      <h3 style="color:#c0392b; margin-top:0;">Nuclear Reset</h3>
+      <p style="font-size:11px;">Raderar alla deltagare och alla resultat permanent.</p>
+      <button class="btn" onclick="nuclearReset()" style="background:#c0392b;">Rensa hela tävlingen</button>
+    </div>
   </div>
 
   <div id="tab-problems" class="admin-tab" style="display:none">
@@ -84,16 +87,19 @@
   </div>
 
   <div id="tab-users" class="admin-tab" style="display:none">
-    <div class="card"><table id="table-users"><tbody></tbody></table></div>
+    <div class="card">
+      <table id="table-users">
+        <thead><tr><th>Användare</th><th>cm</th><th>Åtgärd</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
 <script>
-  const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
+  const API_URL = "DITT_APP_SCRIPT_URL_HÄR";
   const token = new URLSearchParams(window.location.search).get('token');
-  let cachedData = null;
-  let adminData = null;
-  let isProcessing = false;
+  let cachedData = null, adminData = null, isProcessing = false;
 
   window.onload = () => {
     if (token === 'admin') refreshAdmin();
@@ -103,13 +109,11 @@
 
   async function fetchData(showLoading) {
     if (showLoading) switchView('loading');
-    try {
-      const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
-      cachedData = await res.json();
-      render();
-      startTimer(cachedData.competitionTimes);
-      if (showLoading) switchView('app');
-    } catch (e) { console.error(e); }
+    const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+    cachedData = await res.json();
+    render();
+    startTimer(cachedData.competitionTimes);
+    if (showLoading) switchView('app');
   }
 
   // --- ADMIN LOGIK ---
@@ -133,8 +137,14 @@
       <td><button onclick="deleteProblem('${p.id}')">❌</button></td></tr>`).join('');
 
     document.querySelector('#table-users tbody').innerHTML = d.users.map(u => 
-      `<tr><td>${u.name}</td><td><input type="number" value="${u.length}" onchange="updateUser('${u.id}', this.value)"></td>
-      <td><button onclick="resetUser('${u.id}')">Reset</button></td></tr>`).join('');
+      `<tr>
+        <td><strong>${u.name}</strong><br><small>${u.email}</small></td>
+        <td><input type="number" value="${u.length}" style="width:45px" onchange="updateUser('${u.id}', this.value)"></td>
+        <td>
+          <button onclick="resetUser('${u.id}')" style="background:#f39c12; color:white; border:none; padding:4px; border-radius:4px; font-size:9px; margin-bottom:4px;">Reset Score</button>
+          <button onclick="deleteUser('${u.id}')" style="background:#c0392b; color:white; border:none; padding:4px; border-radius:4px; font-size:9px;">Radera</button>
+        </td>
+      </tr>`).join('');
   }
 
   async function adminAction(params) {
@@ -145,26 +155,19 @@
     document.getElementById('admin-status').innerHTML = '✓';
   }
 
-  function saveSettings() {
-    adminAction({
-      action: 'updateSettings',
-      refHeight: document.getElementById('adm-ref').value,
-      pot: document.getElementById('adm-pot').value,
-      start: document.getElementById('adm-start').value,
-      end: document.getElementById('adm-end').value
-    });
-  }
-
-  function addProblem() {
-    const id = document.getElementById('new-p-id').value;
-    const name = document.getElementById('new-p-name').value;
-    if(id && name) adminAction({ action: 'addProblem', pId: id, name: name });
-  }
-
+  function saveSettings() { adminAction({ action: 'updateSettings', refHeight: document.getElementById('adm-ref').value, pot: document.getElementById('adm-pot').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value }); }
+  function addProblem() { const id = document.getElementById('new-p-id').value, name = document.getElementById('new-p-name').value; if(id && name) adminAction({ action: 'addProblem', pId: id, name: name }); }
   function updateProblem(id, name) { adminAction({ action: 'updateProblem', pId: id, name: name }); }
-  function deleteProblem(id) { if(confirm('Radera?')) adminAction({ action: 'deleteProblem', pId: id }); }
+  function deleteProblem(id) { if(confirm('Radera problem?')) adminAction({ action: 'deleteProblem', pId: id }); }
   function updateUser(id, len) { adminAction({ action: 'updateUser', userId: id, length: len }); }
-  function resetUser(id) { if(confirm('Nollställ skick?')) adminAction({ action: 'resetUser', userId: id }); }
+  function resetUser(id) { if(confirm('Nollställ poäng för användaren?')) adminAction({ action: 'resetUser', userId: id }); }
+  function deleteUser(id) { if(confirm('Radera användaren helt?')) adminAction({ action: 'deleteUser', userId: id }); }
+  
+  function nuclearReset() {
+    const code = Math.floor(1000 + Math.random() * 9000);
+    const input = prompt(`VARNING! Detta raderar ALLT.\nSkriv koden ${code} för att bekräfta:`);
+    if (input === code.toString()) adminAction({ action: 'resetEverything' });
+  }
 
   function setAdminTab(tab) {
     document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
@@ -176,10 +179,8 @@
   // --- APP RENDER ---
   function render() {
     if (!cachedData || isProcessing) return;
-    const list = document.getElementById('list');
-    list.innerHTML = '';
+    const list = document.getElementById('list'); list.innerHTML = '';
     const d = cachedData;
-
     if (currentTab === 'scorecard') {
       let total = 0;
       d.problems.forEach(p => {
@@ -187,63 +188,28 @@
         const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1)) * d.currentUser.factor;
         const pts = Math.round(shares * (d.problemValues[p.id]?.valuePerShare || 0));
         total += pts;
-        list.innerHTML += `<div class="card">
-          <span class="p-val" id="pts-${p.id}">${pts.toLocaleString()} p</span>
-          <strong>#${p.id} ${p.name}</strong>
-          <div class="stepper">
-            <button class="btn-s" onclick="updateScore('${p.id}', -1)">−</button>
-            <span style="font-size:20px; font-weight:bold;" id="count-${p.id}">${count}</span>
-            <button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button>
-          </div>
-        </div>`;
+        list.innerHTML += `<div class="card"><span class="p-val" id="pts-${p.id}">${pts.toLocaleString()} p</span><strong>#${p.id} ${p.name}</strong><div class="stepper"><button class="btn-s" onclick="updateScore('${p.id}', -1)">−</button><span style="font-size:20px; font-weight:bold;">${count}</span><button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button></div></div>`;
       });
-      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div><small>HCP: ${d.currentUser.factor.toFixed(2)}</small><br><strong>${d.currentUser.name}</strong></div>
-          <div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
-        </div>
-      </div>`;
+      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;"><div style="display:flex; justify-content:space-between; align-items:center;"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${total.toLocaleString()} p</strong></div></div></div>`;
     } else if (currentTab === 'market') {
-      d.problems.forEach(p => {
-        const val = Math.round(d.problemValues[p.id]?.valuePerShare || 0);
-        list.innerHTML += `<div class="card">
-          <div style="color:#27ae60; font-weight:900; float:right;">${val.toLocaleString()} p</div>
-          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Värde per andel</small>
-        </div>`;
-      });
+      d.problems.forEach(p => { list.innerHTML += `<div class="card"><div style="color:#27ae60; font-weight:900; float:right;">${Math.round(d.problemValues[p.id]?.valuePerShare || 0).toLocaleString()} p</div><strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Värde per andel</small></div>`; });
     } else if (currentTab === 'leaderboard') {
-      d.leaderboard.forEach((u, i) => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60;' : ''}">
-          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
-        </div>`;
-      });
+      d.leaderboard.forEach((u, i) => { list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60;' : ''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
     }
   }
 
   async function updateScore(pId, delta) {
-    isProcessing = true;
-    const calcHtml = '<span class="dots-container"><span class="dots"></span></span>';
-    document.getElementById(`pts-${pId}`).innerHTML = calcHtml;
-    const action = delta > 0 ? 'registerSend' : 'removeSend';
-    const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${pId}`);
-    cachedData = await res.json();
-    isProcessing = false;
-    render();
+    isProcessing = true; document.getElementById(`pts-${pId}`).innerHTML = '<span class="dots-container"><span class="dots"></span></span>';
+    const res = await fetch(`${API_URL}?action=${delta > 0 ? 'registerSend' : 'removeSend'}&token=${token}&pId=${pId}`);
+    cachedData = await res.json(); isProcessing = false; render();
   }
 
   function startTimer(times) {
     const display = document.getElementById('timer-display');
     const update = () => {
-      const now = Date.now();
-      const remain = times.end - now;
-      if (remain > 0) {
-        const s = Math.floor(remain/1000);
-        display.innerHTML = `Slut om: ${Math.floor(s/3600)}t ${Math.floor((s%3600)/60)}m ${s%60}s`;
-        display.className = "timer-banner timer-running";
-      } else {
-        display.innerHTML = "Tävlingen avslutad";
-        display.className = "timer-banner timer-expired";
-      }
+      const now = Date.now(), remain = times.end - now;
+      if (remain > 0) { const s = Math.floor(remain/1000); display.innerHTML = `Slut om: ${Math.floor(s/3600)}t ${Math.floor((s%3600)/60)}m ${s%60}s`; display.className = "timer-banner timer-running"; }
+      else { display.innerHTML = "Tävlingen avslutad"; display.className = "timer-banner timer-expired"; }
     };
     setInterval(update, 1000); update();
   }
