@@ -14,49 +14,40 @@
     .timer-expired { background: #c0392b; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; }
-    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; }
+    
+    /* Förbättrad poäng-layout för att hålla "Beräknar" stilla */
+    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 100px; }
+    
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
     .locked { opacity: 0.4; pointer-events: none; }
-    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-    .info-text { font-size: 12px; color: #666; margin: 10px 0; line-height: 1.4; }
-    .error-msg { color: #e74c3c; background: #fdeaea; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: none; font-size: 14px; text-align: center; font-weight: bold; }
-
-    /* Animation för Beräknar... */
-    .calculating { color: #888 !important; font-size: 12px !important; font-weight: normal !important; }
+    
+    /* FIX: Håll texten stilla, animera punkterna "utanför" layouten */
+    .calculating { color: #888 !important; font-size: 11px !important; font-weight: normal !important; position: relative; display: inline-block; }
+    .dots-container { position: relative; display: inline-block; width: 15px; text-align: left; }
     .dots:after {
-      content: '.';
-      animation: dots 1.5s steps(5, end) infinite;
+      position: absolute;
+      left: 0;
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
     }
     @keyframes dots {
-      0%, 20% { content: '.'; }
-      40% { content: '..'; }
-      60% { content: '...'; }
-      80%, 100% { content: ''; }
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+      100% { content: ''; }
     }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Ansluter...
-</div>
-
-<div id="view-auth" class="view">
-  <div class="card">
-    <h2 style="margin-top:0;">Registrering</h2>
-    <div id="auth-error" class="error-msg">Vänligen fyll i namn och e-post.</div>
-    <input type="text" id="name" placeholder="Ditt namn">
-    <input type="email" id="email" placeholder="Din e-post">
-    <input type="number" id="length" placeholder="Längd i cm (valfritt)">
-    <p class="info-text">Vi använder din längd för att räkna ut handikapp. Standard är 180 cm.</p>
-    <button class="btn" onclick="handleLogin()">Skicka personlig länk</button>
-    <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din e-post!</p>
-  </div>
+  <strong>Miljontävlingen</strong><br>Ansluter till servern...
 </div>
 
 <div id="view-app" class="view">
-  <div id="timer-display" class="timer-banner">Laddar timer...</div>
+  <div id="timer-display" class="timer-banner"></div>
   <div id="header-box"></div>
   
   <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
@@ -75,22 +66,22 @@
   let timerInterval, refreshInterval;
   let requestQueue = [];
   let isProcessingQueue = false;
+  let pendingRequestsCount = 0;
 
   const token = new URLSearchParams(window.location.search).get('token');
 
   window.onload = () => {
-    if (token && token.length > 5) {
+    if (token) {
       fetchData(true);
       setupAutoRefresh();
     } else {
-      switchView('auth');
+      document.body.innerHTML = "<div class='card'>Ingen länk hittades. Vänligen använd länken från ditt mail.</div>";
     }
   };
 
   function setupAutoRefresh() {
-    if (refreshInterval) clearInterval(refreshInterval);
-    refreshInterval = setInterval(() => {
-      if(!isProcessingQueue) fetchData(false); 
+    setInterval(() => {
+      if(!isProcessingQueue && pendingRequestsCount === 0) fetchData(false); 
     }, 30000);
   }
 
@@ -99,11 +90,10 @@
     try {
       const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
       cachedData = await res.json();
-      if (cachedData.error === "AUTH_REQUIRED") return switchView('auth');
       startTimer(cachedData.competitionTimes);
       render();
       if (showLoading) switchView('app');
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Kunde inte hämta data"); }
   }
 
   function startTimer(times) {
@@ -123,11 +113,11 @@
         display.className = "timer-banner";
         listEl.classList.add('locked');
       } else if (beforeEnd > 0) {
-        display.innerHTML = `Tävling pågår! Tid kvar: ${formatTime(beforeEnd)}`;
+        display.innerHTML = `Tävling pågår! Slut om: ${formatTime(beforeEnd)}`;
         display.className = "timer-banner timer-running";
         listEl.classList.remove('locked');
       } else if (gracePeriod > 0) {
-        display.innerHTML = `Tävling avslutad! Komplettera: ${formatTime(gracePeriod)}`;
+        display.innerHTML = `KOMPLETTERA: ${formatTime(gracePeriod)}`;
         display.className = "timer-banner timer-expired";
         listEl.classList.remove('locked');
       } else {
@@ -157,16 +147,19 @@
     const totalSpan = document.getElementById(`total-pts`);
     
     let currentVal = parseInt(countSpan.innerText);
-    let newVal = Math.max(0, currentVal + delta);
-    countSpan.innerText = newVal;
+    countSpan.innerText = Math.max(0, currentVal + delta);
     
-    ptsSpan.innerHTML = 'Beräknar<span class="dots"></span>';
+    // FIX: Stabil HTML för Beräknar
+    const calcHtml = 'Beräknar<span class="dots-container"><span class="dots"></span></span>';
+    
+    ptsSpan.innerHTML = calcHtml;
     ptsSpan.classList.add('calculating');
     if(totalSpan) {
-      totalSpan.innerHTML = 'Beräknar<span class="dots"></span>';
+      totalSpan.innerHTML = calcHtml;
       totalSpan.classList.add('calculating');
     }
 
+    pendingRequestsCount++;
     requestQueue.push({ pId, delta });
     processQueue();
   }
@@ -174,15 +167,18 @@
   async function processQueue() {
     if (isProcessingQueue || requestQueue.length === 0) return;
     isProcessingQueue = true;
+    
     while (requestQueue.length > 0) {
       const req = requestQueue.shift();
       try {
         const action = req.delta > 0 ? 'registerSend' : 'removeSend';
         const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${req.pId}`);
         cachedData = await res.json();
-      } catch (e) { console.error("Kö-fel:", e); }
+      } catch (e) { console.error("Anropsfel"); }
+      pendingRequestsCount--;
     }
-    render();
+    
+    if (pendingRequestsCount === 0) render();
     isProcessingQueue = false;
   }
 
@@ -209,43 +205,32 @@
           </div>
         </div>`;
       });
-      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;">
+      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white; border:none;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div><small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length} cm)</small><br><strong>${d.currentUser.name}</strong></div>
-          <div style="text-align:right;"><small style="text-transform: uppercase; opacity: 0.8;">Aktuell poäng</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
+          <div><small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length}cm)</small><br><strong>${d.currentUser.name}</strong></div>
+          <div style="text-align:right;"><small style="opacity:0.8;">POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
         </div>
       </div>`;
     } else if (currentTab === 'market') {
       d.problems.forEach(p => {
-        const val = Math.round(d.problemValues[p.id]?.valuePerShare || d.potPerProblem);
+        const val = Math.round(d.problemValues[p.id]?.valuePerShare || 0);
         list.innerHTML += `<div class="card">
           <div style="color:#27ae60; font-weight:900; float:right;">${val.toLocaleString()} p</div>
-          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Andelar: ${(d.problemValues[p.id]?.totalShares || 0).toFixed(2)}</small>
+          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Marknadsvärde per andel</small>
         </div>`;
       });
     } else if (currentTab === 'leaderboard') {
       d.leaderboard.forEach((u, i) => {
-        const isMe = u.name === d.currentUser.name;
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${isMe ? 'border:2px solid #27ae60;' : ''}">
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60;' : ''}">
           <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
         </div>`;
       });
     }
   }
 
-  async function handleLogin() {
-    const n = document.getElementById('name').value;
-    const e = document.getElementById('email').value;
-    const l = document.getElementById('length').value;
-    if(!n || !e) { document.getElementById('auth-error').style.display = 'block'; return; }
-    await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(n)}&email=${encodeURIComponent(e)}&length=${l}`);
-    document.getElementById('msg').style.display = 'block';
-  }
-
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    const el = document.getElementById('view-' + id);
-    if(el) el.style.display = 'block';
+    document.getElementById('view-' + id).style.display = 'block';
   }
 </script>
 </body>
