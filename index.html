@@ -3,89 +3,191 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen</title>
+  <title>Miljontävlingen v.10</title>
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f4f7f6; padding: 15px; }
-    .view { display: none; max-width: 500px; margin: 0 auto; }
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 15px; }
-    input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-    button { width: 100%; padding: 15px; background: #27ae60; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    body { font-family: -apple-system, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
+    .view { display: none; max-width: 480px; margin: 0 auto; }
+    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
+    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
+    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
+    .btn-s { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; }
+    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; }
+    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+    
+    /* Logg-fönster för felsökning */
+    #debug-log { 
+      margin-top: 50px; padding: 10px; background: #222; color: #0f0; 
+      font-family: monospace; font-size: 11px; border-radius: 5px; 
+      max-height: 200px; overflow-y: auto; display: block;
+    }
+    
+    #overlay { 
+      position: fixed; top:0; left:0; width:100%; height:100%; 
+      background:rgba(255,255,255,0.8); display:none; align-items:center; 
+      justify-content:center; z-index:100; font-weight: bold; 
+    }
   </style>
 </head>
 <body>
 
-<div id="view-loading" class="view" style="display:block; text-align:center;">Laddar...</div>
+<div id="overlay">Uppdaterar...</div>
+
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top: 50px;">
+  <strong>Miljontävlingen</strong>
+  <p id="loading-status">Initierar anslutning...</p>
+</div>
 
 <div id="view-auth" class="view">
   <div class="card">
-    <h2>Logga in</h2>
-    <input type="text" id="reg-name" placeholder="Namn">
-    <input type="email" id="reg-email" placeholder="E-post">
-    <input type="number" id="reg-length" placeholder="Längd (cm)">
-    <button onclick="handleAuth()">Skicka länk</button>
+    <h2>Öppna Scorecard</h2>
+    <input type="text" id="name" placeholder="Namn">
+    <input type="email" id="email" placeholder="E-post">
+    <input type="number" id="length" placeholder="Längd (cm)">
+    <button class="btn" onclick="handleLogin()">Skicka länk</button>
+    <p id="msg" style="display:none; color:green; text-align:center;">Kolla din mejl!</p>
   </div>
 </div>
 
 <div id="view-app" class="view">
-  <div id="content"></div>
+  <div id="header-box"></div>
+  <div id="list"></div>
+</div>
+
+<div class="view" style="display:block;">
+  <div id="debug-log">Logg: Väntar på start...</div>
 </div>
 
 <script>
-  // 1. Inställningar
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   
-  // Fånga token oavsett om den kommer från Google (server-side) eller URL (client-side)
-  let currentToken = "<?= typeof token !== 'undefined' ? token : '' ?>"; 
-  if (!currentToken) {
+  function log(msg) {
+    const logDiv = document.getElementById('debug-log');
+    logDiv.innerHTML += "<br>> " + msg;
+    console.log(msg);
+  }
+
+  // Hämta token
+  let currentToken = "<?= typeof token !== 'undefined' ? token : '' ?>";
+  if (!currentToken || currentToken.includes("<?=")) {
     currentToken = new URLSearchParams(window.location.search).get('token');
   }
 
   window.onload = () => {
+    log("App startad. Domän: " + window.location.hostname);
     if (currentToken) {
+      log("Token hittad: " + currentToken.substring(0,5) + "...");
       fetchData();
     } else {
+      log("Ingen token hittad i URL.");
       switchView('auth');
     }
   };
 
-  async function fetchData() {
-    // Om vi kör på Google Script direkt (i en iframe/direktlänk)
-    if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(data => { renderApp(data); switchView('app'); })
-        .getAppData(currentToken);
-    } 
-    // Om vi kör på GitHub (via API)
-    else {
-      const res = await fetch(`${API_URL}?action=getAppData&token=${currentToken}`);
-      const data = await res.json();
-      renderApp(data);
-      switchView('app');
-    }
-  }
-
-  async function handleAuth() {
-    const n = document.getElementById('reg-name').value;
-    const e = document.getElementById('reg-email').value;
-    const l = document.getElementById('reg-length').value;
+  async function apiCall(params) {
+    const query = new URLSearchParams(params).toString();
+    const url = `${API_URL}?${query}`;
+    log("Anropar API: " + params.action);
     
-    // Samma här: Kolla om vi kör via Google eller Fetch
-    if (typeof google !== 'undefined' && google.script) {
-      google.script.run.withSuccessHandler(() => alert("Kolla mejlen!")).requestLogin(e, n, l);
-    } else {
-      await fetch(`${API_URL}?action=requestLogin&email=${e}&name=${n}&length=${l}`);
-      alert("Kolla mejlen!");
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) throw new Error("HTTP-fel: " + res.status);
+      const data = await res.json();
+      log("API Svar mottaget för: " + params.action);
+      return data;
+    } catch (e) {
+      log("FEL i apiCall: " + e.message);
+      throw e;
     }
   }
 
-  function renderApp(data) {
-    if (data.error) return switchView('auth');
-    document.getElementById('content').innerHTML = `<h1>Hej ${data.currentUser.name}</h1>`;
+  async function fetchData() {
+    document.getElementById('loading-status').innerText = "Hämtar data från Google...";
+    try {
+      const data = await apiCall({ action: 'getAppData', token: currentToken });
+      if (data.error) {
+        log("Google svarade med fel: " + data.error);
+        switchView('auth');
+      } else {
+        render(data);
+        switchView('app');
+      }
+    } catch (e) {
+      document.getElementById('loading-status').innerText = "Kunde inte ladda. Se logg nedan.";
+    }
+  }
+
+  async function handleLogin() {
+    const n = document.getElementById('name').value;
+    const e = document.getElementById('email').value;
+    const l = document.getElementById('length').value;
+    log("Försöker registrera: " + e);
+    
+    try {
+      const res = await apiCall({ action: 'requestLogin', name: n, email: e, length: l });
+      if(res.success) {
+        document.getElementById('msg').style.display = 'block';
+        log("Login-mejl skickat!");
+      }
+    } catch (err) {
+      alert("Kunde inte skicka länk.");
+    }
+  }
+
+  async function updateScore(pId, delta) {
+    document.getElementById('overlay').style.display = 'flex';
+    try {
+      const data = await apiCall({ 
+        action: delta > 0 ? 'registerSend' : 'removeSend', 
+        token: currentToken, 
+        pId: pId 
+      });
+      render(data);
+    } catch (e) {
+      alert("Kunde inte spara.");
+    }
+    document.getElementById('overlay').style.display = 'none';
+  }
+
+  function render(data) {
+    let total = 0;
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    
+    data.problems.forEach(p => {
+      const count = data.userSends[p.id] || 0;
+      const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1));
+      const val = Math.round((data.problemValues[p.id]?.valuePerShare || 0) * shares * data.currentUser.factor);
+      total += val;
+      
+      list.innerHTML += `
+        <div class="card">
+          <span class="p-val">${val} kr</span>
+          <strong>#${p.id} ${p.name}</strong>
+          <div class="stepper">
+            <button class="btn-s" onclick="updateScore('${p.id}', -1)" style="background:#eee">−</button>
+            <span style="font-size:22px; font-weight:bold;">${count}</span>
+            <button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button>
+          </div>
+        </div>`;
+    });
+
+    document.getElementById('header-box').innerHTML = `
+      <div class="card" style="background:#2c3e50; color:white;">
+        <div style="float:right; text-align:right;">
+          <span style="font-size:12px; opacity:0.7;">TOTALT</span><br>
+          <span style="font-size:24px; color:#2ecc71; font-weight:900;">${total} kr</span>
+        </div>
+        <strong>${data.currentUser.name}</strong><br>
+        <small>HCP: ${data.currentUser.factor.toFixed(2)}</small>
+      </div>`;
   }
 
   function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    document.getElementById('view-' + id).style.display = 'block';
+    document.querySelectorAll('.view').forEach(v => {
+      if(v.id !== 'debug-log-parent') v.style.display = 'none';
+    });
+    const target = document.getElementById('view-' + id);
+    if(target) target.style.display = 'block';
   }
 </script>
 </body>
