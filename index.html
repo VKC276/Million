@@ -37,7 +37,7 @@
     <input type="text" id="name" placeholder="Ditt namn">
     <input type="email" id="email" placeholder="Din e-post">
     <input type="number" id="length" placeholder="Längd i cm (valfritt)">
-    <p class="info-text">Vi använder din längd för att räkna ut handikapp. Om ingen längd anges sätts den automatiskt till 180 cm.</p>
+    <p class="info-text">Vi använder din längd för att räkna ut handikapp. Standard är 180 cm.</p>
     <button class="btn" onclick="handleLogin()">Skicka personlig länk</button>
     <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din e-post!</p>
   </div>
@@ -60,9 +60,12 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   let currentTab = 'scorecard';
   let cachedData = null;
-  let timerInterval;
-  let refreshInterval;
-  let isUpdating = false;
+  let timerInterval, refreshInterval;
+  
+  // Kö-hantering
+  let requestQueue = [];
+  let isProcessingQueue = false;
+
   const token = new URLSearchParams(window.location.search).get('token');
 
   window.onload = () => {
@@ -77,7 +80,7 @@
   function setupAutoRefresh() {
     if (refreshInterval) clearInterval(refreshInterval);
     refreshInterval = setInterval(() => {
-      if(!isUpdating) fetchData(false); 
+      if(!isProcessingQueue) fetchData(false); 
     }, 30000);
   }
 
@@ -87,11 +90,10 @@
       const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
       cachedData = await res.json();
       if (cachedData.error === "AUTH_REQUIRED") return switchView('auth');
-      
       startTimer(cachedData.competitionTimes);
       render();
       if (showLoading) switchView('app');
-    } catch (e) { console.error("Refresh-fel:", e); }
+    } catch (e) { console.error(e); }
   }
 
   function startTimer(times) {
@@ -115,7 +117,7 @@
         display.className = "timer-banner timer-running";
         listEl.classList.remove('locked');
       } else if (gracePeriod > 0) {
-        display.innerHTML = `Tävlingen är avslutad! Ni har ${formatTime(gracePeriod)} kvar för komplettering.`;
+        display.innerHTML = `Tävling avslutad! Komplettera: ${formatTime(gracePeriod)}`;
         display.className = "timer-banner timer-expired";
         listEl.classList.remove('locked');
       } else {
@@ -139,36 +141,49 @@
     render();
   }
 
-  async function updateScore(pId, delta) {
-    isUpdating = true;
-    
-    // UI-Tricks: Uppdatera lokalt direkt
+  // Denna funktion hanterar klicket direkt i UI
+  function updateScore(pId, delta) {
     const countSpan = document.getElementById(`count-${pId}`);
     const ptsSpan = document.getElementById(`pts-${pId}`);
     const totalSpan = document.getElementById(`total-pts`);
     
-    let currentCount = parseInt(countSpan.innerText);
-    let newCount = Math.max(0, currentCount + delta);
-    countSpan.innerText = newCount;
+    // 1. Uppdatera UI omedelbart
+    let currentVal = parseInt(countSpan.innerText);
+    let newVal = Math.max(0, currentVal + delta);
+    countSpan.innerText = newVal;
     
-    // Visa "Beräknar"
-    ptsSpan.innerText = "Beräknar...";
+    ptsSpan.innerText = "Sparar...";
     ptsSpan.classList.add('calculating');
-    if(totalSpan) totalSpan.innerText = "Beräknar...";
+    if(totalSpan) totalSpan.innerText = "...";
 
-    try {
-      const res = await fetch(`${API_URL}?action=${delta>0?'registerSend':'removeSend'}&token=${token}&pId=${pId}`);
-      cachedData = await res.json();
-      render(); // Rendera om allt med riktig data från servern
-    } catch (e) { 
-      alert("Kunde inte spara. Prova igen."); 
-      fetchData(false);
+    // 2. Lägg till i kön
+    requestQueue.push({ pId, delta });
+    processQueue();
+  }
+
+  // Bearbetar kön en i taget
+  async function processQueue() {
+    if (isProcessingQueue || requestQueue.length === 0) return;
+    
+    isProcessingQueue = true;
+    while (requestQueue.length > 0) {
+      const req = requestQueue.shift();
+      try {
+        const action = req.delta > 0 ? 'registerSend' : 'removeSend';
+        const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${req.pId}`);
+        cachedData = await res.json();
+      } catch (e) {
+        console.error("Kö-fel:", e);
+      }
     }
-    isUpdating = false;
+    
+    // 3. När kön är helt tom, rendera om allt för att synka poängen
+    render();
+    isProcessingQueue = false;
   }
 
   function render() {
-    if (!cachedData) return;
+    if (!cachedData || isProcessingQueue) return; 
     const list = document.getElementById('list');
     list.innerHTML = '';
     const d = cachedData;
@@ -190,10 +205,10 @@
           </div>
         </div>`;
       });
-      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white; border:none;">
+      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <div><small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length} cm)</small><br><strong>${d.currentUser.name}</strong></div>
-          <div style="text-align:right;"><small style="text-transform: uppercase; opacity: 0.8;">Aktuell poäng</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
+          <div style="text-align:right;"><small>AKTUELL POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
         </div>
       </div>`;
     } else if (currentTab === 'market') {
