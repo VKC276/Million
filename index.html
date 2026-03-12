@@ -5,20 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    body { font-family: -apple-system, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
+    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; }
-    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; }
-    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+    .btn-s { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+    .btn-s:active { transform: scale(0.9); }
+    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
+    input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     
-    /* Logg-fönster för felsökning */
     #debug-log { 
       margin-top: 50px; padding: 10px; background: #222; color: #0f0; 
       font-family: monospace; font-size: 11px; border-radius: 5px; 
-      max-height: 200px; overflow-y: auto; display: block;
+      max-height: 150px; overflow-y: auto; display: block;
     }
     
     #overlay { 
@@ -30,21 +30,22 @@
 </head>
 <body>
 
-<div id="overlay">Uppdaterar...</div>
+<div id="overlay">Uppdaterar poäng...</div>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top: 50px;">
-  <strong>Miljontävlingen</strong>
-  <p id="loading-status">Initierar anslutning...</p>
+  <strong style="font-size: 20px;">Miljontävlingen</strong>
+  <p id="loading-status">Ansluter till servern...</p>
 </div>
 
 <div id="view-auth" class="view">
   <div class="card">
-    <h2>Öppna Scorecard</h2>
+    <h2 style="margin-top:0;">Öppna Scorecard</h2>
+    <p style="font-size: 14px; color: #666;">Ange dina uppgifter för att få din personliga tävlingslänk via e-post.</p>
     <input type="text" id="name" placeholder="Namn">
     <input type="email" id="email" placeholder="E-post">
-    <input type="number" id="length" placeholder="Längd (cm)">
+    <input type="number" id="length" placeholder="Din längd (cm)">
     <button class="btn" onclick="handleLogin()">Skicka länk</button>
-    <p id="msg" style="display:none; color:green; text-align:center;">Kolla din mejl!</p>
+    <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din mejl!</p>
   </div>
 </div>
 
@@ -54,7 +55,7 @@
 </div>
 
 <div class="view" style="display:block;">
-  <div id="debug-log">Logg: Väntar på start...</div>
+  <div id="debug-log">Systemlogg startad...</div>
 </div>
 
 <script>
@@ -63,22 +64,27 @@
   function log(msg) {
     const logDiv = document.getElementById('debug-log');
     logDiv.innerHTML += "<br>> " + msg;
+    logDiv.scrollTop = logDiv.scrollHeight;
     console.log(msg);
   }
 
-  // Hämta token
-  let currentToken = "<?= typeof token !== 'undefined' ? token : '' ?>";
-  if (!currentToken || currentToken.includes("<?=")) {
-    currentToken = new URLSearchParams(window.location.search).get('token');
+  // Hämta token från URL
+  function getCleanToken() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const t = urlParams.get('token');
+    if (t && t.length > 5 && !t.includes("<?")) return t;
+    return null;
   }
 
+  const currentToken = getCleanToken();
+
   window.onload = () => {
-    log("App startad. Domän: " + window.location.hostname);
+    log("App laddad. Domän: " + window.location.hostname);
     if (currentToken) {
-      log("Token hittad: " + currentToken.substring(0,5) + "...");
+      log("Token identifierad. Hämtar data...");
       fetchData();
     } else {
-      log("Ingen token hittad i URL.");
+      log("Ingen token hittad. Visar registrering.");
       switchView('auth');
     }
   };
@@ -86,33 +92,29 @@
   async function apiCall(params) {
     const query = new URLSearchParams(params).toString();
     const url = `${API_URL}?${query}`;
-    log("Anropar API: " + params.action);
+    log("Anropar: " + params.action);
     
     try {
       const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) throw new Error("HTTP-fel: " + res.status);
+      if (!res.ok) throw new Error("Serverfel: " + res.status);
       const data = await res.json();
-      log("API Svar mottaget för: " + params.action);
+      if (data.error) throw new Error(data.error);
+      log("Svar mottaget: " + params.action);
       return data;
     } catch (e) {
-      log("FEL i apiCall: " + e.message);
+      log("FEL: " + e.message);
       throw e;
     }
   }
 
   async function fetchData() {
-    document.getElementById('loading-status').innerText = "Hämtar data från Google...";
+    document.getElementById('loading-status').innerText = "Hämtar ditt scorecard...";
     try {
       const data = await apiCall({ action: 'getAppData', token: currentToken });
-      if (data.error) {
-        log("Google svarade med fel: " + data.error);
-        switchView('auth');
-      } else {
-        render(data);
-        switchView('app');
-      }
+      render(data);
+      switchView('app');
     } catch (e) {
-      document.getElementById('loading-status').innerText = "Kunde inte ladda. Se logg nedan.";
+      document.getElementById('loading-status').innerText = "Kunde inte ladda data. Se logg.";
     }
   }
 
@@ -120,16 +122,17 @@
     const n = document.getElementById('name').value;
     const e = document.getElementById('email').value;
     const l = document.getElementById('length').value;
-    log("Försöker registrera: " + e);
-    
+    if(!n || !e || !l) return alert("Fyll i alla fält");
+
+    log("Skickar inloggningsförfrågan...");
     try {
       const res = await apiCall({ action: 'requestLogin', name: n, email: e, length: l });
       if(res.success) {
         document.getElementById('msg').style.display = 'block';
-        log("Login-mejl skickat!");
+        log("E-post skickad till: " + e);
       }
     } catch (err) {
-      alert("Kunde inte skicka länk.");
+      alert("Kunde inte skicka länk. Kontrollera din anslutning.");
     }
   }
 
@@ -143,42 +146,54 @@
       });
       render(data);
     } catch (e) {
-      alert("Kunde inte spara.");
+      alert("Kunde inte spara. Försök igen.");
     }
     document.getElementById('overlay').style.display = 'none';
   }
 
   function render(data) {
-    let total = 0;
+    let totalScore = 0;
     const list = document.getElementById('list');
     list.innerHTML = '';
     
     data.problems.forEach(p => {
-      const count = data.userSends[p.id] || 0;
-      const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1));
-      const val = Math.round((data.problemValues[p.id]?.valuePerShare || 0) * shares * data.currentUser.factor);
-      total += val;
+      const mySendCount = data.userSends[p.id] || 0;
+      
+      // LOGIK: Beräkna dina personliga andelar (1.0 - 2.0)
+      const sendShares = mySendCount <= 0 ? 0 : 
+                         (mySendCount >= 10 ? 2.0 : 1.0 + (mySendCount - 1) * 0.1);
+      
+      // LOGIK: Viktade andelar (Dina sends * Ditt handicap)
+      const myWeightedShares = sendShares * data.currentUser.factor;
+      
+      // LOGIK: Värde per andel (Pott / Totala viktade andelar på problemet)
+      const valPerShare = data.problemValues[p.id]?.valuePerShare || 0;
+      
+      const points = Math.round(myWeightedShares * valPerShare);
+      totalScore += points;
       
       list.innerHTML += `
         <div class="card">
-          <span class="p-val">${val} kr</span>
-          <strong>#${p.id} ${p.name}</strong>
+          <span class="p-val">${points.toLocaleString()} p</span>
+          <div style="font-weight:bold; font-size:1.1em;">#${p.id} ${p.name}</div>
           <div class="stepper">
-            <button class="btn-s" onclick="updateScore('${p.id}', -1)" style="background:#eee">−</button>
-            <span style="font-size:22px; font-weight:bold;">${count}</span>
+            <button class="btn-s" onclick="updateScore('${p.id}', -1)" style="background:#eee; color:#333;">−</button>
+            <span style="font-size:22px; font-weight:bold;">${mySendCount}</span>
             <button class="btn-s" onclick="updateScore('${p.id}', 1)" style="background:#27ae60; color:white;">+</button>
           </div>
         </div>`;
     });
 
     document.getElementById('header-box').innerHTML = `
-      <div class="card" style="background:#2c3e50; color:white;">
-        <div style="float:right; text-align:right;">
-          <span style="font-size:12px; opacity:0.7;">TOTALT</span><br>
-          <span style="font-size:24px; color:#2ecc71; font-weight:900;">${total} kr</span>
+      <div class="card" style="background:#2c3e50; color:white; border:none; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-weight:bold; font-size:1.2em;">${data.currentUser.name}</div>
+          <div style="font-size:11px; opacity:0.8;">HCP-FAKTOR: ${data.currentUser.factor.toFixed(2)}</div>
         </div>
-        <strong>${data.currentUser.name}</strong><br>
-        <small>HCP: ${data.currentUser.factor.toFixed(2)}</small>
+        <div style="text-align:right;">
+          <div style="font-size:10px; opacity:0.8; letter-spacing:1px;">DIN VINST</div>
+          <div style="font-size:24px; font-weight:900; color:#2ecc71;">${totalScore.toLocaleString()}</div>
+        </div>
       </div>`;
   }
 
@@ -186,8 +201,7 @@
     document.querySelectorAll('.view').forEach(v => {
       if(v.id !== 'debug-log-parent') v.style.display = 'none';
     });
-    const target = document.getElementById('view-' + id);
-    if(target) target.style.display = 'block';
+    document.getElementById('view-' + id).style.display = 'block';
   }
 </script>
 </body>
