@@ -9,11 +9,15 @@
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
     .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    .timer-running { background: #27ae60; }
+    .timer-expired { background: #c0392b; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; }
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
+    .locked { opacity: 0.4; pointer-events: none; }
     input { width: 100%; padding: 14px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     .info-text { font-size: 12px; color: #666; margin: 10px 0; line-height: 1.4; }
     .error-msg { color: #e74c3c; background: #fdeaea; padding: 10px; border-radius: 6px; margin-bottom: 10px; display: none; font-size: 14px; text-align: center; font-weight: bold; }
@@ -32,21 +36,17 @@
   <div class="card">
     <h2 style="margin-top:0;">Registrering</h2>
     <div id="auth-error" class="error-msg">Vänligen fyll i namn och e-post.</div>
-    
     <input type="text" id="name" placeholder="Ditt namn">
     <input type="email" id="email" placeholder="Din e-post">
-    <input type="number" id="length" placeholder="Din längd i cm (valfritt)">
-    
-    <p class="info-text">
-      Vi använder din längd för att räkna ut handikapp. Om ingen längd anges sätts den automatiskt till 180 cm.
-    </p>
-    
+    <input type="number" id="length" placeholder="Längd i cm (valfritt)">
+    <p class="info-text">Vi använder din längd för att räkna ut handikapp. Om ingen längd anges sätts den automatiskt till 180 cm.</p>
     <button class="btn" onclick="handleLogin()">Skicka personlig länk</button>
-    <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din e-post! Länken är på väg.</p>
+    <p id="msg" style="display:none; color:#27ae60; text-align:center; font-weight:bold; margin-top:15px;">Kolla din e-post!</p>
   </div>
 </div>
 
 <div id="view-app" class="view">
+  <div id="timer-display" class="timer-banner">Laddar timer...</div>
   <div id="header-box"></div>
   
   <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
@@ -62,8 +62,8 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   let currentTab = 'scorecard';
   let cachedData = null;
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('token');
+  let timerInterval;
+  const token = new URLSearchParams(window.location.search).get('token');
 
   window.onload = () => {
     if (token && token.length > 5) fetchData();
@@ -75,9 +75,48 @@
       const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
       cachedData = await res.json();
       if (cachedData.error === "AUTH_REQUIRED") return switchView('auth');
+      startTimer(cachedData.competitionTimes);
       render();
       switchView('app');
     } catch (e) { console.error(e); }
+  }
+
+  function startTimer(times) {
+    if (timerInterval) clearInterval(timerInterval);
+    const display = document.getElementById('timer-display');
+    const serverOffset = times.now - Date.now();
+
+    timerInterval = setInterval(() => {
+      const now = Date.now() + serverOffset;
+      const beforeStart = times.start - now;
+      const beforeEnd = times.end - now;
+      const gracePeriod = (times.end + 600000) - now;
+      const listEl = document.getElementById('list');
+
+      if (beforeStart > 0) {
+        display.innerHTML = `Tid till start: ${formatTime(beforeStart)}`;
+        display.className = "timer-banner";
+        listEl.classList.add('locked');
+      } else if (beforeEnd > 0) {
+        display.innerHTML = `Tävling pågår! Tid kvar: ${formatTime(beforeEnd)}`;
+        display.className = "timer-banner timer-running";
+        listEl.classList.remove('locked');
+      } else if (gracePeriod > 0) {
+        display.innerHTML = `Tävlingen är avslutad! Ni har ${formatTime(gracePeriod)} kvar för komplettering.`;
+        display.className = "timer-banner timer-expired";
+        listEl.classList.remove('locked');
+      } else {
+        display.innerHTML = `Tävlingen är helt avslutad.`;
+        display.className = "timer-banner timer-expired";
+        listEl.classList.add('locked');
+        clearInterval(timerInterval);
+      }
+    }, 1000);
+  }
+
+  function formatTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s/3600)}t ${Math.floor((s%3600)/60)}m ${s%60}s`;
   }
 
   function setTab(tab) {
@@ -87,34 +126,10 @@
     render();
   }
 
-  async function handleLogin() {
-    const n = document.getElementById('name').value;
-    const e = document.getElementById('email').value;
-    const l = document.getElementById('length').value;
-    const errDiv = document.getElementById('auth-error');
-
-    if(!n || !e) {
-      errDiv.style.display = 'block';
-      return;
-    }
-    
-    errDiv.style.display = 'none';
-    document.getElementById('overlay').style.display = 'flex';
-    
-    try {
-      await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(n)}&email=${encodeURIComponent(e)}&length=${l}`);
-      document.getElementById('msg').style.display = 'block';
-    } catch (err) {
-      alert("Något gick fel, försök igen.");
-    }
-    document.getElementById('overlay').style.display = 'none';
-  }
-
   async function updateScore(pId, delta) {
     document.getElementById('overlay').style.display = 'flex';
-    const action = delta > 0 ? 'registerSend' : 'removeSend';
     try {
-      const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${pId}`);
+      const res = await fetch(`${API_URL}?action=${delta>0?'registerSend':'removeSend'}&token=${token}&pId=${pId}`);
       cachedData = await res.json();
       render();
     } catch (e) { alert("Kunde inte spara"); }
@@ -143,41 +158,39 @@
           </div>
         </div>`;
       });
-      
-      // HÄR ÄR UPPDATERINGEN AV HEADERN
       document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white; border:none;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length} cm)</small><br>
-            <strong>${d.currentUser.name}</strong>
-          </div>
-          <div style="text-align:right;">
-            <small style="text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8;">Aktuell poäng</small><br>
-            <strong style="font-size:20px; color:#2ecc71;">${total.toLocaleString()} p</strong>
-          </div>
+          <div><small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length} cm)</small><br><strong>${d.currentUser.name}</strong></div>
+          <div style="text-align:right;"><small>AKTUELL POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${total.toLocaleString()} p</strong></div>
         </div>
       </div>`;
-
     } else if (currentTab === 'market') {
       d.problems.forEach(p => {
         const val = Math.round(d.problemValues[p.id]?.valuePerShare || d.potPerProblem);
-        const shares = d.problemValues[p.id]?.totalShares || 0;
         list.innerHTML += `<div class="card">
           <div style="color:#27ae60; font-weight:900; float:right;">${val.toLocaleString()} p</div>
-          <strong>#${p.id} ${p.name}</strong><br>
-          <small style="color:#888;">Totalt i omlopp: ${shares.toFixed(2)} andelar</small>
+          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Andelar: ${(d.problemValues[p.id]?.totalShares || 0).toFixed(2)}</small>
         </div>`;
       });
-
     } else if (currentTab === 'leaderboard') {
       d.leaderboard.forEach((u, i) => {
         const isMe = u.name === d.currentUser.name;
         list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${isMe ? 'border:2px solid #27ae60;' : ''}">
-          <span>${i+1}. ${u.name}</span>
-          <strong>${u.score.toLocaleString()} p</strong>
+          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
         </div>`;
       });
     }
+  }
+
+  async function handleLogin() {
+    const n = document.getElementById('name').value;
+    const e = document.getElementById('email').value;
+    const l = document.getElementById('length').value;
+    if(!n || !e) { document.getElementById('auth-error').style.display = 'block'; return; }
+    document.getElementById('overlay').style.display = 'flex';
+    await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(n)}&email=${encodeURIComponent(e)}&length=${l}`);
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('msg').style.display = 'block';
   }
 
   function switchView(id) {
