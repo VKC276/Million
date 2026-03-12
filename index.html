@@ -14,189 +14,168 @@
     .timer-expired { background: #c0392b; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; }
-    
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 60px; }
-    
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
     .locked { opacity: 0.4; pointer-events: none; }
     
-    /* ENBART PRICKAR ANIMERING */
-    .calculating { 
-      display: inline-flex; 
-      justify-content: flex-end; 
-      align-items: center; 
-      min-width: 30px; 
-    }
-    .dots-container { 
-      position: relative; 
-      display: inline-block; 
-      width: 15px; 
-      height: 20px;
-      text-align: left; 
-    }
+    /* Admin UI */
+    .admin-nav { display: flex; gap: 5px; margin-bottom: 15px; }
+    .admin-nav button { flex: 1; padding: 10px; border: none; border-radius: 6px; background: #34495e; color: white; font-size: 11px; }
+    .admin-nav button.active { background: #e74c3c; }
+    input { width: 100%; padding: 10px; margin: 5px 0 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    td, th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+
+    /* Animering prickar */
+    .calculating { display: inline-flex; justify-content: flex-end; align-items: center; min-width: 30px; }
+    .dots-container { position: relative; display: inline-block; width: 15px; height: 20px; text-align: left; }
     .dots:after {
-      position: absolute;
-      left: 0;
-      top: -2px;
-      content: '';
-      animation: dots 1.5s steps(4, end) infinite;
-      font-size: 24px;
-      color: #27ae60; /* Prickarna blir gröna som poängen */
+      position: absolute; left: 0; top: -2px; content: '';
+      animation: dots 1.5s steps(4, end) infinite; font-size: 24px; color: #27ae60;
     }
-    @keyframes dots {
-      0% { content: ''; }
-      25% { content: '.'; }
-      50% { content: '..'; }
-      75% { content: '...'; }
-      100% { content: ''; }
-    }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } 100% { content: ''; } }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Ansluter till servern...
+  <strong>Miljontävlingen</strong><br>Ansluter...
 </div>
 
 <div id="view-app" class="view">
   <div id="timer-display" class="timer-banner"></div>
   <div id="header-box"></div>
-  
   <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
     <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Scorecard</button>
     <button id="btn-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
     <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
   </div>
-
   <div id="list"></div>
+</div>
+
+<div id="view-admin" class="view">
+  <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between;">
+    <strong>ADMIN PANEL</strong><div id="admin-status"></div>
+  </div>
+  <div class="admin-nav">
+    <button id="nav-settings" onclick="setAdminTab('settings')">SETTINGS</button>
+    <button id="nav-problems" onclick="setAdminTab('problems')">PROBLEMS</button>
+    <button id="nav-users" onclick="setAdminTab('users')">USERS</button>
+  </div>
+
+  <div id="tab-settings" class="admin-tab">
+    <div class="card">
+      <label>Ref-höjd (cm)</label><input type="number" id="adm-ref">
+      <label>Poängpott</label><input type="number" id="adm-pot">
+      <label>Start</label><input type="datetime-local" id="adm-start">
+      <label>Slut</label><input type="datetime-local" id="adm-end">
+      <button class="btn" onclick="saveSettings()" style="background:#2980b9">Spara inställningar</button>
+    </div>
+  </div>
+
+  <div id="tab-problems" class="admin-tab" style="display:none">
+    <div class="card">
+      <input type="text" id="new-p-id" placeholder="ID (t.ex. 1)">
+      <input type="text" id="new-p-name" placeholder="Namn">
+      <button class="btn" onclick="addProblem()">Lägg till problem</button>
+    </div>
+    <div class="card"><table id="table-problems"><tbody></tbody></table></div>
+  </div>
+
+  <div id="tab-users" class="admin-tab" style="display:none">
+    <div class="card"><table id="table-users"><tbody></tbody></table></div>
+  </div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
-  let currentTab = 'scorecard';
-  let cachedData = null;
-  let timerInterval;
-  let requestQueue = [];
-  let isProcessingQueue = false;
-  let pendingRequestsCount = 0;
-
   const token = new URLSearchParams(window.location.search).get('token');
+  let cachedData = null;
+  let adminData = null;
+  let isProcessing = false;
 
   window.onload = () => {
-    if (token) {
-      fetchData(true);
-      setupAutoRefresh();
-    } else {
-      document.body.innerHTML = "<div class='card'>Ingen länk hittades. Vänligen använd länken från ditt mail.</div>";
-    }
+    if (token === 'admin') refreshAdmin();
+    else if (token) { fetchData(true); setInterval(() => { if(!isProcessing) fetchData(false) }, 30000); }
+    else document.body.innerHTML = "<div class='card'>Ingen länk hittades.</div>";
   };
-
-  function setupAutoRefresh() {
-    setInterval(() => {
-      if(!isProcessingQueue && pendingRequestsCount === 0) fetchData(false); 
-    }, 30000);
-  }
 
   async function fetchData(showLoading) {
     if (showLoading) switchView('loading');
     try {
       const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
       cachedData = await res.json();
-      startTimer(cachedData.competitionTimes);
       render();
+      startTimer(cachedData.competitionTimes);
       if (showLoading) switchView('app');
-    } catch (e) { console.error("Kunde inte hämta data"); }
+    } catch (e) { console.error(e); }
   }
 
-  function startTimer(times) {
-    if (timerInterval) clearInterval(timerInterval);
-    const display = document.getElementById('timer-display');
-    const serverOffset = times.now - Date.now();
-
-    timerInterval = setInterval(() => {
-      const now = Date.now() + serverOffset;
-      const beforeStart = times.start - now;
-      const beforeEnd = times.end - now;
-      const gracePeriod = (times.end + 600000) - now;
-      const listEl = document.getElementById('list');
-
-      if (beforeStart > 0) {
-        display.innerHTML = `Tid till start: ${formatTime(beforeStart)}`;
-        display.className = "timer-banner";
-        listEl.classList.add('locked');
-      } else if (beforeEnd > 0) {
-        display.innerHTML = `Tävling pågår! Slut om: ${formatTime(beforeEnd)}`;
-        display.className = "timer-banner timer-running";
-        listEl.classList.remove('locked');
-      } else if (gracePeriod > 0) {
-        display.innerHTML = `KOMPLETTERA: ${formatTime(gracePeriod)}`;
-        display.className = "timer-banner timer-expired";
-        listEl.classList.remove('locked');
-      } else {
-        display.innerHTML = `Tävlingen är helt avslutad.`;
-        display.className = "timer-banner timer-expired";
-        listEl.classList.add('locked');
-        clearInterval(timerInterval);
-      }
-    }, 1000);
+  // --- ADMIN LOGIK ---
+  async function refreshAdmin() {
+    switchView('loading');
+    const res = await fetch(`${API_URL}?action=getAdminFull&token=admin`);
+    adminData = await res.json();
+    renderAdmin();
+    switchView('admin');
   }
 
-  function formatTime(ms) {
-    const s = Math.floor(ms / 1000);
-    return `${Math.floor(s/3600)}t ${Math.floor((s%3600)/60)}m ${s%60}s`;
+  function renderAdmin() {
+    const d = adminData;
+    document.getElementById('adm-ref').value = d.settings.refHeight;
+    document.getElementById('adm-pot').value = d.settings.pot;
+    document.getElementById('adm-start').value = d.settings.start;
+    document.getElementById('adm-end').value = d.settings.end;
+
+    document.querySelector('#table-problems tbody').innerHTML = d.problems.map(p => 
+      `<tr><td>${p.id}</td><td><input value="${p.name}" onchange="updateProblem('${p.id}', this.value)"></td>
+      <td><button onclick="deleteProblem('${p.id}')">❌</button></td></tr>`).join('');
+
+    document.querySelector('#table-users tbody').innerHTML = d.users.map(u => 
+      `<tr><td>${u.name}</td><td><input type="number" value="${u.length}" onchange="updateUser('${u.id}', this.value)"></td>
+      <td><button onclick="resetUser('${u.id}')">Reset</button></td></tr>`).join('');
   }
 
-  function setTab(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('btn-' + tab).classList.add('active');
-    render();
+  async function adminAction(params) {
+    document.getElementById('admin-status').innerHTML = '<span class="dots-container"><span class="dots"></span></span>';
+    const res = await fetch(`${API_URL}?token=admin&${new URLSearchParams(params)}`);
+    adminData = await res.json();
+    renderAdmin();
+    document.getElementById('admin-status').innerHTML = '✓';
   }
 
-  function updateScore(pId, delta) {
-    const countSpan = document.getElementById(`count-${pId}`);
-    const ptsSpan = document.getElementById(`pts-${pId}`);
-    const totalSpan = document.getElementById(`total-pts`);
-    
-    let currentVal = parseInt(countSpan.innerText);
-    countSpan.innerText = Math.max(0, currentVal + delta);
-    
-    // NY FIX: Endast prickar, ingen text
-    const calcHtml = '<span class="dots-container"><span class="dots"></span></span>';
-    
-    ptsSpan.innerHTML = calcHtml;
-    ptsSpan.classList.add('calculating');
-    if(totalSpan) {
-      totalSpan.innerHTML = calcHtml;
-      totalSpan.classList.add('calculating');
-    }
-
-    pendingRequestsCount++;
-    requestQueue.push({ pId, delta });
-    processQueue();
+  function saveSettings() {
+    adminAction({
+      action: 'updateSettings',
+      refHeight: document.getElementById('adm-ref').value,
+      pot: document.getElementById('adm-pot').value,
+      start: document.getElementById('adm-start').value,
+      end: document.getElementById('adm-end').value
+    });
   }
 
-  async function processQueue() {
-    if (isProcessingQueue || requestQueue.length === 0) return;
-    isProcessingQueue = true;
-    
-    while (requestQueue.length > 0) {
-      const req = requestQueue.shift();
-      try {
-        const action = req.delta > 0 ? 'registerSend' : 'removeSend';
-        const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${req.pId}`);
-        cachedData = await res.json();
-      } catch (e) { console.error("Anropsfel"); }
-      pendingRequestsCount--;
-    }
-    
-    if (pendingRequestsCount === 0) render();
-    isProcessingQueue = false;
+  function addProblem() {
+    const id = document.getElementById('new-p-id').value;
+    const name = document.getElementById('new-p-name').value;
+    if(id && name) adminAction({ action: 'addProblem', pId: id, name: name });
   }
 
+  function updateProblem(id, name) { adminAction({ action: 'updateProblem', pId: id, name: name }); }
+  function deleteProblem(id) { if(confirm('Radera?')) adminAction({ action: 'deleteProblem', pId: id }); }
+  function updateUser(id, len) { adminAction({ action: 'updateUser', userId: id, length: len }); }
+  function resetUser(id) { if(confirm('Nollställ skick?')) adminAction({ action: 'resetUser', userId: id }); }
+
+  function setAdminTab(tab) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.admin-nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).style.display = 'block';
+    document.getElementById('nav-' + tab).classList.add('active');
+  }
+
+  // --- APP RENDER ---
   function render() {
-    if (!cachedData || isProcessingQueue) return; 
+    if (!cachedData || isProcessing) return;
     const list = document.getElementById('list');
     list.innerHTML = '';
     const d = cachedData;
@@ -218,10 +197,10 @@
           </div>
         </div>`;
       });
-      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white; border:none;">
+      document.getElementById('header-box').innerHTML = `<div class="card" style="background:#2c3e50; color:white;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div><small>HCP: ${d.currentUser.factor.toFixed(2)} (${d.currentUser.length}cm)</small><br><strong>${d.currentUser.name}</strong></div>
-          <div style="text-align:right;"><small style="opacity:0.8;">POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
+          <div><small>HCP: ${d.currentUser.factor.toFixed(2)}</small><br><strong>${d.currentUser.name}</strong></div>
+          <div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;" id="total-pts">${total.toLocaleString()} p</strong></div>
         </div>
       </div>`;
     } else if (currentTab === 'market') {
@@ -229,7 +208,7 @@
         const val = Math.round(d.problemValues[p.id]?.valuePerShare || 0);
         list.innerHTML += `<div class="card">
           <div style="color:#27ae60; font-weight:900; float:right;">${val.toLocaleString()} p</div>
-          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Marknadsvärde per andel</small>
+          <strong>#${p.id} ${p.name}</strong><br><small style="color:#888;">Värde per andel</small>
         </div>`;
       });
     } else if (currentTab === 'leaderboard') {
@@ -241,10 +220,37 @@
     }
   }
 
-  function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    document.getElementById('view-' + id).style.display = 'block';
+  async function updateScore(pId, delta) {
+    isProcessing = true;
+    const calcHtml = '<span class="dots-container"><span class="dots"></span></span>';
+    document.getElementById(`pts-${pId}`).innerHTML = calcHtml;
+    const action = delta > 0 ? 'registerSend' : 'removeSend';
+    const res = await fetch(`${API_URL}?action=${action}&token=${token}&pId=${pId}`);
+    cachedData = await res.json();
+    isProcessing = false;
+    render();
   }
+
+  function startTimer(times) {
+    const display = document.getElementById('timer-display');
+    const update = () => {
+      const now = Date.now();
+      const remain = times.end - now;
+      if (remain > 0) {
+        const s = Math.floor(remain/1000);
+        display.innerHTML = `Slut om: ${Math.floor(s/3600)}t ${Math.floor((s%3600)/60)}m ${s%60}s`;
+        display.className = "timer-banner timer-running";
+      } else {
+        display.innerHTML = "Tävlingen avslutad";
+        display.className = "timer-banner timer-expired";
+      }
+    };
+    setInterval(update, 1000); update();
+  }
+
+  let currentTab = 'scorecard';
+  function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); render(); }
+  function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 </script>
 </body>
 </html>
