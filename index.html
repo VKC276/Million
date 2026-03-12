@@ -17,16 +17,12 @@
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; min-width: 60px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 12px; }
     .tab-btn.active { background: #27ae60; }
-    
-    /* Admin UI */
     .admin-nav { display: flex; gap: 5px; margin-bottom: 15px; }
     .admin-nav button { flex: 1; padding: 10px; border: none; border-radius: 6px; background: #34495e; color: white; font-size: 11px; }
     .admin-nav button.active { background: #e74c3c; }
     input { width: 100%; padding: 10px; margin: 5px 0 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     td, th { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
-
-    /* Animering prickar */
     .dots-container { position: relative; display: inline-block; width: 15px; height: 20px; }
     .dots:after {
       position: absolute; left: 0; top: -2px; content: '';
@@ -97,7 +93,7 @@
 </div>
 
 <script>
-  const API_URL = "DITT_APP_SCRIPT_URL_HÄR";
+  const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   const token = new URLSearchParams(window.location.search).get('token');
   let cachedData = null, adminData = null, isProcessing = false;
 
@@ -116,7 +112,6 @@
     if (showLoading) switchView('app');
   }
 
-  // --- ADMIN LOGIK ---
   async function refreshAdmin() {
     switchView('loading');
     const res = await fetch(`${API_URL}?action=getAdminFull&token=admin`);
@@ -176,7 +171,6 @@
     document.getElementById('nav-' + tab).classList.add('active');
   }
 
-  // --- APP RENDER ---
   function render() {
     if (!cachedData || isProcessing) return;
     const list = document.getElementById('list'); list.innerHTML = '';
