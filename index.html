@@ -13,11 +13,12 @@
     .view { display: none; max-width: 500px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
     .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: all 0.5s; }
+    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
     
+    /* Dynamiska filter-chips */
     .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0 15px 0; scrollbar-width: none; }
     .filter-bar::-webkit-scrollbar { display: none; }
     .filter-chip { background: #fff; border: 1px solid #ddd; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
@@ -35,12 +36,19 @@
     .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
     label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
     input { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+    .info-text { font-size: 12px; color: #777; line-height: 1.4; margin-bottom: 10px; }
     .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    
+    #view-scoreboard { max-width: 95vw; }
+    .sb-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+    @media (max-width: 1000px) { .sb-grid { grid-template-columns: 1fr; } }
+    .column-split { column-width: 350px; column-gap: 40px; column-rule: 1px solid #eee; }
+    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; overflow: hidden; break-inside: avoid; }
+    .p-num { min-width: 35px; font-weight: bold; color: #666; }
+    .p-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     
     #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
   </style>
 </head>
@@ -86,6 +94,14 @@
   </div>
 </div>
 
+<div id="view-scoreboard" class="view">
+  <div id="sb-timer-box" class="timer-banner"></div>
+  <div class="sb-grid">
+    <div><div class="card" id="sb-list" style="padding:0"></div></div>
+    <div><div class="card" id="sb-market" style="padding:0"></div></div>
+  </div>
+</div>
+
 <div id="view-app" class="view">
   <div id="timer-display" class="timer-banner"></div>
   <div id="header-box"></div>
@@ -96,8 +112,7 @@
   </div>
 
   <div id="class-filter-container" style="display:none;">
-    <div id="dynamic-filter-bar" class="filter-bar">
-      </div>
+    <div id="dynamic-filter-bar" class="filter-bar"></div>
   </div>
 
   <div id="list"></div>
@@ -110,7 +125,15 @@
   const action = urlParams.get('action');
   
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
-  let updateQueue = {}, localSends = {}, isLocked = false;
+  let updateQueue = {}, localSends = {};
+
+  // Hjälpfunktion för att fixa tidszon i admin-boxar
+  function toLocalISO(dateStr) {
+    if(!dateStr) return "";
+    const d = new Date(dateStr);
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
+  }
 
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
@@ -118,20 +141,15 @@
     if (target) target.style.display = 'block';
   }
 
-  // --- NYTT: Dynamiska filter-knappar baserat på faktiska klasser i datan ---
+  // Dynamiska filter-chips
   function renderClassFilters() {
     if (!cachedData || !cachedData.leaderboard) return;
-    
-    // Hitta alla unika klasser (sorterade)
     const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
     const bar = document.getElementById('dynamic-filter-bar');
-    
     let html = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="filterByClass('Alla', this)">Alla</div>`;
-    
     classes.forEach(c => {
       html += `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="filterByClass('${c}', this)">${c}</div>`;
     });
-    
     bar.innerHTML = html;
   }
 
@@ -142,54 +160,30 @@
     renderApp();
   }
 
-  function refreshTimer() {
-    if (!cachedData || !cachedData.settings) return;
-    const end = new Date(cachedData.settings.endTime).getTime();
-    const now = Date.now();
-    const diff = end - now;
-    const gracePeriod = 600000; 
-    
-    const el = document.getElementById('timer-display');
-    const listEl = document.getElementById('list');
-    const wasLocked = isLocked;
-    
-    if (diff > 0) {
-      isLocked = false;
-      const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000), s = Math.floor((diff%60000)/1000);
-      el.innerText = `TÄVLING PÅGÅR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-      el.style.background = "var(--primary)";
-      if (listEl) listEl.style.opacity = "1";
-    } else if (diff > -gracePeriod) {
-      isLocked = false;
-      const timeLeft = gracePeriod + diff;
-      const m = Math.floor(timeLeft/60000), s = Math.floor((timeLeft%60000)/1000);
-      el.innerText = `EFTERREGISTRERING: ${m}:${s.toString().padStart(2,'0')}`;
-      el.style.background = "var(--accent)";
-      if (listEl) listEl.style.opacity = "1";
-    } else {
-      isLocked = true;
-      el.innerText = "TÄVLINGEN ÄR AVSLUTAD";
-      el.style.background = "#7f8c8d";
-      if (listEl) listEl.style.opacity = "0.6";
-    }
-    
-    if(wasLocked !== isLocked && currentTab === 'scorecard') renderApp();
-  }
-
   async function loadData(showLoading) {
     const activeToken = token || new URLSearchParams(window.location.search).get('token');
     if(showLoading) switchView('loading');
+    const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:activeToken};
     try {
-      const res = await fetch(`${API_URL}?action=getAppData&token=${activeToken}`);
+      const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
       cachedData = await res.json();
-      renderApp();
-      switchView('app');
+      action === 'scoreboard' ? renderScoreboard() : renderApp();
+      switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
     } catch (e) { console.error(e); }
   }
 
+  function getProblemScore(pId) {
+    if(!cachedData) return 0;
+    const myCount = localSends[pId] || 0;
+    const pVal = cachedData.problemValues[pId];
+    if (myCount === 0 || !pVal) return 0;
+    return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
+  }
+
+  // Hamra-vänlig update (Optimistisk)
   async function update(pId, delta) {
-    if(isLocked) return;
-    localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
+    if (!localSends[pId]) localSends[pId] = 0;
+    localSends[pId] = Math.max(0, localSends[pId] + delta);
     if (!updateQueue[pId]) updateQueue[pId] = [];
     updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
     renderApp();
@@ -219,36 +213,34 @@
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        const val = d.problemValues[p.id];
-        const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
-        const syncing = updateQueue[p.id]?.length > 0;
-        html += `<div class="card" style="${isLocked ? 'background: #fdfdfd;' : ''}"><strong>#${p.id} ${p.name}</strong><div class="p-score">${syncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)" ${(isLocked || syncing) ? 'disabled' : ''}>−</button><b style="font-size:28px; ${isLocked ? 'color: #999;' : ''}">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)" ${(isLocked || syncing) ? 'disabled' : ''}>+</button></div></div>`;
+        const score = updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p';
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${score}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
-      // Rita filter-chips när vi går in på topplistan
       renderClassFilters();
       const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
-      if (filtered.length === 0) {
-        html = `<div class="card" style="text-align:center; color:#999;">Inga deltagare i klassen ${selectedClass}</div>`;
-      } else {
-        filtered.forEach((u, i) => { 
-          html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; 
-        });
-      }
+      filtered.forEach((u, i) => { 
+        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; 
+      });
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
-    document.getElementById('list').innerHTML = html;
+    document.getElementById('list').innerHTML = html; refreshTimer();
   }
 
-  async function adminRequest(btn, params) {
-    const originalText = btn.innerText;
-    btn.disabled = true; btn.innerText = "Bearbetar...";
-    try {
-      const res = await fetch(`${API_URL}?${new URLSearchParams({ pwd: adminPwd, ...params })}`);
-      renderAdmin(await res.json());
-    } catch (e) { alert("Fel!"); }
-    finally { btn.disabled = false; btn.innerText = originalText; }
+  function renderScoreboard() {
+    const d = cachedData;
+    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name}</span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
+    document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3><div class="column-split" style="padding:10px;">' + d.problems.map(p => `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong></div>`).join('') + '</div>';
+    refreshTimer();
+  }
+
+  function refreshTimer() {
+    if (!cachedData) return;
+    const end = new Date(cachedData.settings.endTime).getTime(), now = Date.now(), target = end - now;
+    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
+    const str = target > 0 ? `KVAR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "AVSLUTAD";
+    document.querySelectorAll('.timer-banner').forEach(el => el.innerText = str);
   }
 
   async function loadAdmin() {
@@ -263,17 +255,18 @@
   function renderAdmin(data) {
     document.getElementById('adm-pot').value = data.settings.pot;
     document.getElementById('adm-ref').value = data.settings.refHeight;
-    document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
-    document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
+    // Fixat: Använd toLocalISO för att tid ska synas i boxarna
+    document.getElementById('adm-start').value = toLocalISO(data.settings.start);
+    document.getElementById('adm-end').value = toLocalISO(data.settings.end);
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row"><span>${u.name}</span><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button></div>`).join('');
   }
 
-  async function saveSettings() { await adminRequest(document.getElementById('btn-save-settings'), { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value }); }
-  async function addProblem() { await adminRequest(document.getElementById('btn-add-problem'), { action: 'addProblem', pId: document.getElementById('new-p-id').value, name: document.getElementById('new-p-name').value }); document.getElementById('new-p-id').value = ""; document.getElementById('new-p-name').value = ""; }
-  async function deleteProblem(btn, pId) { if(confirm("Radera?")) await adminRequest(btn, { action: 'deleteProblem', pId: pId }); }
-  async function resetUser(btn, uId) { if(confirm("Nollställ?")) await adminRequest(btn, { action: 'resetUser', userId: uId }); }
-  function confirmResetAll() { if(confirm("RADERA ALLT?")) adminRequest(document.getElementById('btn-reset-all'), { action: 'resetAll' }); }
+  async function saveSettings() { 
+    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
+    renderAdmin(await res.json()); alert("Sparat!");
+  }
 
   function setTab(t) { 
     currentTab = t; 
@@ -285,7 +278,7 @@
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (token) { 
+    else if (action === 'scoreboard' || token) { 
       loadData(true); 
       setInterval(refreshTimer, 1000);
       setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
