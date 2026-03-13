@@ -286,70 +286,88 @@
     refreshTimer();
   }
 
-  function renderScoreboard() {
-    const d = cachedData;
-    if (!d) return;
-    const mode = d.settings.compMode || 'open_hcp';
-    const isClassMode = mode.indexOf('class_') === 0;
+ function renderScoreboard() {
+  const d = cachedData;
+  if (!d) return;
+  const mode = d.settings.compMode || 'open_hcp';
+  const isClassMode = mode.indexOf('class_') === 0;
 
-    let displayLeaderboard = d.leaderboard.map(u => {
-        const factor = mode.includes('no_hcp') ? 1.0 : (u.factor || 1.0);
-        let score = 0;
-        d.problems.forEach(p => {
-            const sends = u.sends?.[p.id] || 0;
-            const pVal = d.problemValues[p.id];
-            if (sends > 0 && pVal) score += ((sends * factor) / (pVal.totalShares || 1)) * d.settings.totalPot;
-        });
-        return { ...u, score };
-    }).sort((a,b) => b.score - a.score);
+  // 1. Beräkna poäng för alla baserat på deras klass-shares
+  let displayLeaderboard = d.leaderboard.map(u => {
+    const factor = mode.includes('no_hcp') ? 1.0 : (u.factor || 1.0);
+    const uClass = u.userClass || "Allmän";
+    let score = 0;
 
-    let titleText = "TOPPLISTA (TOTAL)";
-    let listToShow = displayLeaderboard;
-
-    if (isClassMode) {
-      const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-      if (scoreboardClassIndex >= classes.length) scoreboardClassIndex = 0;
-      const currentClassName = classes[scoreboardClassIndex];
-      titleText = `TOPPLISTA: ${currentClassName.toUpperCase()}`;
-      listToShow = displayLeaderboard.filter(u => (u.userClass || "Allmän") === currentClassName);
-
-      if (!scoreboardRotationTimer) {
-        scoreboardRotationTimer = setInterval(() => {
-          scoreboardClassIndex++;
-          renderScoreboard();
-        }, 10000); 
+    d.problems.forEach(p => {
+      // Vi hämtar shares för just denna användares klass från backenden
+      // (Backend skickar nu totalShares som är specifik för klassen i class-mode)
+      const pVal = d.problemValues[p.id];
+      const sends = (u.sends && u.sends[p.id]) ? u.sends[p.id] : 0;
+      
+      if (sends > 0 && pVal && pVal.totalShares > 0) {
+        score += ((sends * factor) / pVal.totalShares) * d.settings.totalPot;
       }
-    } else {
-      if (scoreboardRotationTimer) {
-        clearInterval(scoreboardRotationTimer);
-        scoreboardRotationTimer = null;
-      }
+    });
+    return { ...u, score: score };
+  }).sort((a,b) => b.score - a.score);
+
+  // 2. Hantera rotation och filter
+  const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+  let currentClassName = "Alla";
+  let titleText = "TOPPLISTA (TOTAL)";
+  let listToShow = displayLeaderboard;
+
+  if (isClassMode && classes.length > 0) {
+    if (scoreboardClassIndex >= classes.length) scoreboardClassIndex = 0;
+    currentClassName = classes[scoreboardClassIndex];
+    titleText = `TOPPLISTA: ${currentClassName.toUpperCase()}`;
+    listToShow = displayLeaderboard.filter(u => (u.userClass || "Allmän") === currentClassName);
+
+    if (!scoreboardRotationTimer) {
+      scoreboardRotationTimer = setInterval(() => {
+        scoreboardClassIndex++;
+        renderScoreboard();
+      }, 10000); 
     }
+  }
 
-    document.getElementById('sb-list').innerHTML = `
-      <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px; display:flex; justify-content:space-between;">
-        <span>${titleText}</span>
-        <span>${isClassMode ? (scoreboardClassIndex + 1) + '/' + [...new Set(d.leaderboard.map(u => u.userClass))].length : ''}</span>
-      </h3>` + 
-      listToShow.slice(0, 25).map((u,i) => `
-        <div class="row">
-          <span class="p-num">${i+1}.</span>
-          <span class="p-name">${u.name}</span>
-          <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
-        </div>`).join('');
+  // 3. Rendera listan
+  document.getElementById('sb-list').innerHTML = `
+    <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px; display:flex; justify-content:space-between;">
+      <span>${titleText}</span>
+      <span>${isClassMode ? (scoreboardClassIndex + 1) + '/' + classes.length : ''}</span>
+    </h3>` + 
+    listToShow.slice(0, 25).map((u,i) => `
+      <div class="row">
+        <span class="p-num">${i+1}.</span>
+        <span class="p-name">${u.name}</span>
+        <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
+      </div>`).join('');
 
-    document.getElementById('sb-market').innerHTML = `
-      <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3>
-      <div class="column-split" style="padding:10px;">
-        ${d.problems.map(p => `
+  // 4. Rendera Börsen - Nu följer den klassen!
+  document.getElementById('sb-market').innerHTML = `
+    <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">
+      BÖRSEN ${isClassMode ? '(' + currentClassName + ')' : ''}
+    </h3>
+    <div class="column-split" style="padding:10px;">
+      ${d.problems.map(p => {
+        const pVal = d.problemValues[p.id];
+        // Värdet beräknas som Pott / Totala andelar i klassen
+        const currentVal = (pVal && pVal.totalShares > 0) 
+          ? Math.round(d.settings.totalPot / pVal.totalShares) 
+          : d.settings.totalPot;
+
+        return `
           <div class="row">
             <span class="p-num">#${p.id}</span>
             <span class="p-name">${p.name}</span>
-            <strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong>
-          </div>`).join('')}
-      </div>`;
-    refreshTimer();
-  }
+            <strong class="market-val">${currentVal.toLocaleString()}</strong>
+          </div>`;
+      }).join('')}
+    </div>`;
+    
+  refreshTimer();
+}
 
   function refreshTimer() {
     if (!cachedData) return;
