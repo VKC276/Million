@@ -255,7 +255,6 @@
   function renderAdmin(data) {
     document.getElementById('adm-pot').value = data.settings.pot;
     document.getElementById('adm-ref').value = data.settings.refHeight;
-    // Fixat: Använd toLocalISO för att tid ska synas i boxarna
     document.getElementById('adm-start').value = toLocalISO(data.settings.start);
     document.getElementById('adm-end').value = toLocalISO(data.settings.end);
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
@@ -263,10 +262,87 @@
   }
 
   async function saveSettings() { 
+    const btn = document.getElementById('btn-save-settings');
+    btn.innerText = "Sparar...";
     const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
-    renderAdmin(await res.json()); alert("Sparat!");
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
+      renderAdmin(await res.json()); alert("Sparat!");
+    } catch (e) { alert("Kunde inte spara"); }
+    btn.innerText = "Spara";
   }
+
+  // --- NYA/UPPDATERADE FUNKTIONER FÖR ADMIN ---
+  
+  async function addProblem() {
+    const btn = document.getElementById('btn-add-problem');
+    const id = document.getElementById('new-p-id').value;
+    const name = document.getElementById('new-p-name').value;
+    if(!id || !name) return alert("Fyll i ID och Namn");
+    
+    btn.innerText = "Sparar...";
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&id=${id}&name=${name}`);
+      renderAdmin(await res.json());
+      document.getElementById('new-p-id').value = "";
+      document.getElementById('new-p-name').value = "";
+    } catch (e) { alert("Fel!"); }
+    btn.innerText = "Lägg till";
+  }
+
+  async function deleteProblem(btn, pId) {
+    if(!confirm("Radera problem #" + pId + "?")) return;
+    const oldText = btn.innerText;
+    btn.innerText = "Laddar...";
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&id=${pId}`);
+      renderAdmin(await res.json());
+    } catch (e) { btn.innerText = oldText; alert("Fel!"); }
+  }
+
+  async function resetUser(btn, userId) {
+    if(!confirm("Nollställ denna användare?")) return;
+    const oldText = btn.innerText;
+    btn.innerText = "Laddar...";
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&id=${userId}`);
+      renderAdmin(await res.json());
+    } catch (e) { btn.innerText = oldText; alert("Fel!"); }
+  }
+
+  async function confirmResetAll() {
+    if(!confirm("VARNING: Detta raderar ALLA deltagare och ALLA resultat. Är du helt säker?")) return;
+    const btn = document.getElementById('btn-reset-all');
+    btn.innerText = "Sparar...";
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetAll`);
+      renderAdmin(await res.json());
+      alert("Allt är nollställt!");
+    } catch (e) { alert("Fel!"); }
+    btn.innerText = "NOLLSTÄLL ALLT";
+  }
+
+  async function registerUser() {
+    const btn = document.getElementById('btn-do-reg');
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value;
+    const height = document.getElementById('reg-height').value;
+    if(!name || !email) return alert("Fyll i namn och e-post");
+    
+    btn.innerText = "Laddar...";
+    try {
+      const res = await fetch(`${API_URL}?action=register&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&height=${height}`);
+      const data = await res.json();
+      if(data.token) {
+        document.getElementById('reg-form-container').style.display = 'none';
+        document.getElementById('reg-result').style.display = 'block';
+        document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + data.token;
+      }
+    } catch (e) { alert("Kunde inte registrera. Försök igen."); }
+    btn.innerText = "SKAPA PROFIL / SKICKA LÄNK";
+  }
+
+  // --- SLUT PÅ ADMINFUNKTIONER ---
 
   function setTab(t) { 
     currentTab = t; 
