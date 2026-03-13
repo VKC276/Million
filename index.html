@@ -21,19 +21,17 @@
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: var(--primary); color: white; }
+    .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
     .market-val { color: var(--primary); font-weight: bold; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
     .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: opacity 0.2s; }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    
-    /* Admin-specifik CSS */
     #view-scoreboard, #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
     .admin-btn-group { display: flex; gap: 5px; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; transition: all 0.2s; }
-    .btn-mini:disabled { opacity: 0.5; }
+    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; }
     .btn-mini.danger { color: var(--danger); border-color: var(--danger); }
     .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
@@ -125,30 +123,15 @@
     return d.settings.totalPot / (totalShares + 1.0);
   }
 
-  // --- OPTIMERAD ADMIN LOGIK (INGEN RELOAD, INGA POPUPS) ---
+  // --- ADMIN LOGIK ---
   async function adminAction(params, btn, loadingText) {
     const originalText = btn ? btn.innerText : "";
-    if(btn) {
-      btn.innerText = loadingText || "Arbetar...";
-      btn.disabled = true;
-    }
-    
+    if(btn) { btn.innerText = loadingText || "Arbetar..."; btn.disabled = true; }
     try {
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
       const data = await res.json();
-      if (data.error) { 
-        alert("Fel: " + data.error); 
-      } else { 
-        renderAdmin(data); 
-      }
-    } catch (e) { 
-      alert("Anslutningsfel"); 
-    } finally { 
-      if(btn) {
-        btn.innerText = originalText;
-        btn.disabled = false;
-      }
-    }
+      if (data.error) { alert("Fel: " + data.error); } else { renderAdmin(data); }
+    } catch (e) { alert("Anslutningsfel"); } finally { if(btn) { btn.innerText = originalText; btn.disabled = false; } }
   }
 
   async function loadAdmin() {
@@ -170,34 +153,18 @@
       if(data.settings.start) document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
       if(data.settings.end) document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
     }
-    
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `
-      <div class="row">
-        <span><strong>#${p.id}</strong> ${p.name}</span>
-        <button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button>
-      </div>
+      <div class="row"><span><strong>#${p.id}</strong> ${p.name}</span><button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>
     `).join('');
-    
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
-      <div class="row">
-        <span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
-        <div class="admin-btn-group">
-          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
-          <button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Radera</button>
-        </div>
-      </div>
+      <div class="row"><span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
+        <div class="admin-btn-group"><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button><button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Radera</button></div></div>
     `).join('');
   }
 
   async function saveSettings() {
     const btn = document.getElementById('btn-save-settings');
-    await adminAction({
-      action: 'updateSettings',
-      pot: document.getElementById('adm-pot').value,
-      refHeight: document.getElementById('adm-ref').value,
-      start: document.getElementById('adm-start').value,
-      end: document.getElementById('adm-end').value
-    }, btn, "Sparar...");
+    await adminAction({ action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value }, btn, "Sparar...");
   }
 
   async function addProblem() {
@@ -211,10 +178,7 @@
   async function deleteProblem(btn, id) { if(confirm("Radera problem?")) await adminAction({ action: 'deleteProblem', pId: id }, btn, "Raderar..."); }
   async function resetUser(btn, id) { if(confirm("Nollställ användare?")) await adminAction({ action: 'resetUser', userId: id }, btn, "Nollställer..."); }
   async function deleteUser(btn, id) { if(confirm("Radera användare helt?")) await adminAction({ action: 'deleteUser', userId: id }, btn, "Tar bort..."); }
-  async function confirmResetAll() { 
-    const btn = document.getElementById('btn-reset-all');
-    if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, btn, "Återställer systemet..."); 
-  }
+  async function confirmResetAll() { if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, document.getElementById('btn-reset-all'), "Återställer..."); }
 
   // --- CORE LOGIK ---
   async function loadData(showLoading) {
@@ -238,12 +202,23 @@
 
   function renderApp() {
     const d = cachedData;
+    if (!d || !d.currentUser) return;
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
+    
+    // Tidslogik för låsning
+    const now = Date.now();
+    const startTime = new Date(d.settings.startTime).getTime();
+    const endTime = new Date(d.settings.endTime).getTime();
+    const graceEnd = endTime + 3600000;
+    const isLocked = now < startTime || now > graceEnd;
+
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+        const disabled = isLocked ? 'disabled' : '';
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)" ${disabled}>−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)" ${disabled}>+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
       d.leaderboard.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
@@ -255,6 +230,11 @@
   }
 
   async function update(pId, delta) {
+    const now = Date.now();
+    const start = new Date(cachedData.settings.startTime).getTime();
+    const grace = new Date(cachedData.settings.endTime).getTime() + 3600000;
+    if (now < start || now > grace) { alert("Tävlingen är stängd."); return; }
+
     isProcessing = true;
     const act = delta > 0 ? 'registerSend' : 'removeSend';
     await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
@@ -274,6 +254,9 @@
     const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
     const str = label + (target > 0 ? `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "");
     ['timer-display', 'sb-timer-box'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerText = str; el.style.backgroundColor = color; } });
+    
+    // Triggar om-rendering när tävlingen startar/slutar för att låsa upp/låsa knappar
+    if (Math.abs(now - start) < 2000 || Math.abs(now - (end + 3600000)) < 2000) { if(token) renderApp(); }
   }
 
   setInterval(refreshTimer, 1000);
