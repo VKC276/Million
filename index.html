@@ -18,7 +18,6 @@
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
     
-    /* Dynamiska filter-chips */
     .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0 15px 0; scrollbar-width: none; }
     .filter-bar::-webkit-scrollbar { display: none; }
     .filter-chip { background: #fff; border: 1px solid #ddd; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
@@ -35,9 +34,9 @@
 
     .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
     label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
-    input { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+    input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; background: white; }
     .info-text { font-size: 12px; color: #777; line-height: 1.4; margin-bottom: 10px; }
-    .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 16px; }
     
     #view-scoreboard { max-width: 95vw; }
     .sb-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
@@ -67,10 +66,12 @@
     <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
     <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
     <label>Din Längd (cm):</label><input type="number" id="reg-height" value="180">
+    <label>Välj Klass:</label>
+    <select id="reg-class"><option value="Allmän">Laddar klasser...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
-    <p style="color:var(--primary); font-weight:bold;">Klart! Länk skickad.</p>
+    <p style="color:var(--primary); font-weight:bold;">Klart! Din unika länk är skapad.</p>
     <input type="text" id="reg-token-link" readonly onclick="this.select()">
     <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD NU</button>
   </div>
@@ -110,11 +111,7 @@
     <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
     <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
   </div>
-
-  <div id="class-filter-container" style="display:none;">
-    <div id="dynamic-filter-bar" class="filter-bar"></div>
-  </div>
-
+  <div id="class-filter-container" style="display:none;"><div id="dynamic-filter-bar" class="filter-bar"></div></div>
   <div id="list"></div>
 </div>
 
@@ -140,14 +137,25 @@
     if (target) target.style.display = 'block';
   }
 
+  async function loadClassesForRegistration() {
+    try {
+      const res = await fetch(`${API_URL}?action=getClasses`);
+      const data = await res.json();
+      const select = document.getElementById('reg-class');
+      if (data.classes && data.classes.length > 0) {
+        select.innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+      } else {
+        select.innerHTML = '<option value="Allmän">Allmän</option>';
+      }
+    } catch (e) { console.error(e); }
+  }
+
   function renderClassFilters() {
     if (!cachedData || !cachedData.leaderboard) return;
     const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
     const bar = document.getElementById('dynamic-filter-bar');
     let html = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="filterByClass('Alla', this)">Alla</div>`;
-    classes.forEach(c => {
-      html += `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="filterByClass('${c}', this)">${c}</div>`;
-    });
+    classes.forEach(c => { html += `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="filterByClass('${c}', this)">${c}</div>`; });
     bar.innerHTML = html;
   }
 
@@ -203,10 +211,8 @@
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
-    
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
@@ -216,9 +222,7 @@
     } else if (currentTab === 'leaderboard') {
       renderClassFilters();
       const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
-      filtered.forEach((u, i) => { 
-        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; 
-      });
+      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
@@ -246,7 +250,7 @@
     try {
       const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
       renderAdmin(await res.json()); switchView('admin');
-    } catch (e) { alert("Fel!"); location.reload(); }
+    } catch (e) { location.reload(); }
   }
 
   function renderAdmin(data) {
@@ -260,65 +264,60 @@
 
   async function saveSettings() { 
     const btn = document.getElementById('btn-save-settings');
+    const originalText = btn.innerText;
     btn.innerText = "Sparar...";
     const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
     try {
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
-      renderAdmin(await res.json()); alert("Sparat!");
-    } catch (e) { alert("Kunde inte spara"); }
-    btn.innerText = "Spara";
+      renderAdmin(await res.json());
+      btn.innerText = "Sparat!"; btn.style.background = "#2ecc71";
+      setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--dark)"; }, 2000);
+    } catch (e) { btn.innerText = "Fel!"; btn.style.background = "var(--danger)"; setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--dark)"; }, 2000); }
   }
 
   async function addProblem() {
     const btn = document.getElementById('btn-add-problem');
-    const id = document.getElementById('new-p-id').value;
-    const name = document.getElementById('new-p-name').value;
-    if(!id || !name) return alert("Fyll i ID och Namn");
-    
+    const idInput = document.getElementById('new-p-id');
+    const nameInput = document.getElementById('new-p-name');
+    if(!idInput.value || !nameInput.value) return;
     btn.innerText = "Sparar...";
     try {
-      // Justerat: id -> pId för att matcha backend addProblem(e.parameter.pId, ...)
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`);
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`);
       renderAdmin(await res.json());
-      document.getElementById('new-p-id').value = "";
-      document.getElementById('new-p-name').value = "";
-    } catch (e) { alert("Fel!"); }
-    btn.innerText = "Lägg till";
+      idInput.value = ""; nameInput.value = "";
+      btn.innerText = "Klar!"; btn.style.background = "#2ecc71";
+      setTimeout(() => { btn.innerText = "Lägg till"; btn.style.background = "var(--primary)"; }, 1500);
+    } catch (e) { btn.innerText = "Fel!"; setTimeout(() => { btn.innerText = "Lägg till"; }, 2000); }
   }
 
   async function deleteProblem(btn, pId) {
     if(!confirm("Radera problem #" + pId + "?")) return;
-    const oldText = btn.innerText;
-    btn.innerText = "Laddar...";
+    btn.innerText = "...";
     try {
-      // Justerat: id -> pId för att matcha backend deleteRowById(..., e.parameter.pId, ...)
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${encodeURIComponent(pId)}`);
       renderAdmin(await res.json());
-    } catch (e) { btn.innerText = oldText; alert("Fel!"); }
+    } catch (e) { btn.innerText = "Fel"; }
   }
 
   async function resetUser(btn, userId) {
-    if(!confirm("Nollställ denna användare?")) return;
-    const oldText = btn.innerText;
-    btn.innerText = "Laddar...";
+    if(!confirm("Nollställ användare?")) return;
+    btn.innerText = "...";
     try {
-      // Justerat: id -> userId för att matcha backend resetUser(e.parameter.userId)
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`);
       renderAdmin(await res.json());
-    } catch (e) { btn.innerText = oldText; alert("Fel!"); }
+    } catch (e) { btn.innerText = "Fel"; }
   }
 
   async function confirmResetAll() {
-    if(!confirm("VARNING: Detta raderar ALLA deltagare och ALLA resultat. Är du helt säker?")) return;
+    if(!confirm("Radera ALLT?")) return;
     const btn = document.getElementById('btn-reset-all');
-    btn.innerText = "Sparar...";
+    btn.innerText = "Nollställer...";
     try {
-      // Justerat: resetAll -> resetEverything för att matcha backend
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`);
       renderAdmin(await res.json());
-      alert("Allt är nollställt!");
-    } catch (e) { alert("Fel!"); }
-    btn.innerText = "NOLLSTÄLL ALLT";
+      btn.innerText = "KLART!";
+      setTimeout(() => { btn.innerText = "NOLLSTÄLL ALLT"; }, 3000);
+    } catch (e) { btn.innerText = "Fel!"; }
   }
 
   async function registerUser() {
@@ -326,20 +325,18 @@
     const name = document.getElementById('reg-name').value;
     const email = document.getElementById('reg-email').value;
     const height = document.getElementById('reg-height').value;
-    if(!name || !email) return alert("Fyll i namn och e-post");
-    
-    btn.innerText = "Laddar...";
+    const userClass = document.getElementById('reg-class').value;
+    if(!name || !email) { btn.innerText = "Fyll i namn/epost"; btn.style.background = "var(--danger)"; setTimeout(()=> {btn.innerText="SKAPA PROFIL / SKICKA LÄNK"; btn.style.background="var(--primary)"}, 2000); return; }
+    btn.innerText = "Skapar profil...";
     try {
-      // Justerat: action=register -> requestLogin, height -> length för att matcha backend
-      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}`);
+      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(userClass)}`);
       const data = await res.json();
       if(data.token) {
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
         document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + data.token;
       }
-    } catch (e) { alert("Kunde inte registrera. Försök igen."); }
-    btn.innerText = "SKAPA PROFIL / SKICKA LÄNK";
+    } catch (e) { btn.innerText = "Fel! Försök igen"; }
   }
 
   function setTab(t) { 
@@ -356,7 +353,10 @@
       loadData(true); 
       setInterval(refreshTimer, 1000);
       setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
-    } else switchView('register');
+    } else {
+      switchView('register');
+      loadClassesForRegistration();
+    }
   };
 </script>
 </body>
