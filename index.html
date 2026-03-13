@@ -5,261 +5,136 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
+    body { font-family: sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
-    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
+    .header-card { background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; }
+    .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; }
     .tab-btn.active { background: #27ae60; }
-    
-    /* Scoreboard Layout */
-    #view-scoreboard { max-width: 1100px; }
-    .sb-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 800px) { .sb-container { grid-template-columns: 1fr; } }
-    .sb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; font-size: 16px; }
-    .sb-score { font-weight: bold; color: #27ae60; }
-    .sb-title { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
-    
-    .market-val { color: #27ae60; font-weight: bold; font-family: monospace; font-size: 18px; }
-    .stepper-container { margin-top: 15px; text-align: center; }
-    .prob-score-display { color: #27ae60; font-weight: 800; font-size: 20px; margin-bottom: 5px; display: block; }
-    .stepper { display: flex; align-items: center; justify-content: space-between; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
+    .p-score { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
+    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
+    .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
+    .market-val { color: #27ae60; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Uppdaterar poäng...
-</div>
+<div id="loading" style="text-align:center; padding-top:50px;">Laddar...</div>
 
-<div id="view-scoreboard" class="view">
-    <div class="card" style="background:#2c3e50; color:white; text-align:center;">
-        <h2 style="margin:0">Scoreboard</h2>
-        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">--:--</div>
-    </div>
-    <div class="sb-container">
-        <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
-        <div><h3 class="sb-title">Börsen (HCP 1.0 värde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
-    </div>
-</div>
-
-<div id="view-app" class="view">
-  <div id="timer-display" class="timer-banner"></div>
-  <div id="header-box"></div>
-  <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
-    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Mitt Scorecard</button>
-    <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
-    <button id="btn-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
+<div id="app" class="view">
+  <div id="header"></div>
+  <div class="tab-nav">
+    <button id="tab-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Mitt Scorecard</button>
+    <button id="tab-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
+    <button id="tab-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
   </div>
   <div id="list"></div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('token');
-  const action = urlParams.get('action');
-  
+  const token = new URLSearchParams(window.location.search).get('token');
   let cachedData = null;
-  let isProcessing = false;
   let currentTab = 'scorecard';
-  let requestQueue = [];
+  let isProcessing = false;
 
-  function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    const el = document.getElementById('view-' + id);
-    if(el) el.style.display = 'block';
-  }
-
-  function getSetting(key) {
-    if (!cachedData || !cachedData.settings) return null;
-    let found = cachedData.settings[key] || cachedData.settings[key.toUpperCase()] || cachedData.settings[key.toLowerCase()];
-    return found;
-  }
-
-  // MODELL: Räknar ut andelar baserat på antal sends och handicap
   function getShares(count, factor) {
     if (!count || count <= 0) return 0;
-    // 1.0 för första, +0.1 för varje därefter upp till 10 (max 2.0)
     let base = count === 1 ? 1.0 : 1.0 + (Math.min(count, 10) - 1) * 0.1;
     return base * (factor || 1);
   }
 
-  // MODELL: Räknar ut exakt vad din post är värd just nu
-  function calculateCurrentScore(pId) {
+  function calculateScore(pId) {
     if (!cachedData) return 0;
-    const pot = parseInt(getSetting('TOTAL_POT')) || 1000000;
-    const myCount = (cachedData.userSends && cachedData.userSends[pId]) || 0;
-    if (myCount <= 0) return 0;
-
-    const pData = (cachedData.problemValues && cachedData.problemValues[pId]);
-    // Om vi inte har data om andra, men jag har klättrat, äger jag 100% (just nu)
-    if (!pData || !pData.totalShares || pData.totalShares <= 0) return pot;
-
-    const myShares = getShares(myCount, cachedData.currentUser.factor);
-    // Din andel av den totala potten
-    return (myShares / pData.totalShares) * pot;
+    const myCount = cachedData.userSends[pId] || 0;
+    if (myCount === 0) return 0;
+    
+    const pVal = cachedData.problemValues[pId];
+    const pot = cachedData.settings?.totalPot || 1000000;
+    
+    if (pVal && pVal.totalShares > 0) {
+      const myShares = getShares(myCount, cachedData.currentUser.factor);
+      return (myShares / pVal.totalShares) * pot;
+    }
+    return pot;
   }
 
-  // MODELL: Marknadsvärde (vad nästa HCP 1.0 klättrare får)
   function getMarketValue(pId) {
-    if (!cachedData) return 0;
-    const pot = parseInt(getSetting('TOTAL_POT')) || 1000000;
-    const pData = (cachedData.problemValues && cachedData.problemValues[pId]);
-    
-    let totalSharesNow = (pData && pData.totalShares) ? pData.totalShares : 0;
-    let nextTotalShares = totalSharesNow + 1.0; 
-    
-    return (1.0 / nextTotalShares) * pot;
+    const pot = cachedData?.settings?.totalPot || 1000000;
+    const totalShares = cachedData?.problemValues[pId]?.totalShares || 0;
+    return pot / (totalShares + 1.0);
   }
 
-  async function call(params) {
-    const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
-    return res.json();
+  async function update(pId, delta) {
+    if (isProcessing) return;
+    isProcessing = true;
+    const act = delta > 0 ? 'registerSend' : 'removeSend';
+    const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+    cachedData = await res.json();
+    isProcessing = false;
+    render();
   }
 
-  async function fetchScoreboard() {
-    try {
-      cachedData = await call({ action: 'scoreboard' });
-      renderScoreboard();
-      switchView('scoreboard');
-    } catch(e) { console.error(e); }
-  }
-
-  async function fetchData(load) {
-    if(!token || isProcessing) return;
-    if(load) switchView('loading');
-    try {
-      cachedData = await call({ action: 'getAppData', token: token });
-      render();
-      switchView('app');
-    } catch(e) { console.error(e); }
-  }
-
-  function renderScoreboard() {
-    const d = cachedData;
-    if(!d) return;
-    
-    document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,15).map((u,i) => `
-      <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${Math.round(u.score || 0).toLocaleString()} p</span></div>
-    `).join('');
-
-    const sorted = [...(d.problems || [])].map(p => ({...p, val: getMarketValue(p.id)}))
-      .sort((a,b) => b.val - a.val);
-
-    document.getElementById('sb-market-full').innerHTML = sorted.slice(0,15).map(p => `
-      <div class="market-row"><span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(p.val).toLocaleString()}</span></div>
-    `).join('');
-    updateTimers();
+  async function load() {
+    const res = await fetch(`${API_URL}?token=${token}&action=getAppData`);
+    cachedData = await res.json();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    render();
   }
 
   function render() {
     const d = cachedData;
-    if(!d || !d.currentUser) return;
-    const list = document.getElementById('list');
-    list.innerHTML = "";
-
-    const userScoreTotal = (d.leaderboard || []).find(u => u.name === d.currentUser.name)?.score || 0;
-
-    document.getElementById('header-box').innerHTML = `
-      <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
-        <div><small>HCP: ${(d.currentUser.factor || 1).toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>DIN TOTAL</small><br><strong id="total-val" style="color:#2ecc71; font-size:20px;">${Math.round(userScoreTotal).toLocaleString()}</strong></div>
+    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
+    
+    document.getElementById('header').innerHTML = `
+      <div class="card header-card">
+        <span><strong>${d.currentUser.name}</strong></span>
+        <span style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()} p</span>
       </div>`;
 
-    if(currentTab === 'scorecard') {
-      (d.problems || []).forEach(p => {
-        const myCount = (d.userSends && d.userSends[p.id]) || 0;
-        const myScore = calculateCurrentScore(p.id);
-
-        list.innerHTML += `
-          <div class="card" id="card-${p.id}">
-            <strong style="font-size:18px;">#${p.id} ${p.name}</strong>
-            <div class="stepper-container">
-                <span class="prob-score-display" id="pts-${p.id}">${Math.round(myScore).toLocaleString()} p</span>
-                <div class="stepper">
-                  <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
-                  <b style="font-size:28px;" id="count-${p.id}">${myCount}</b>
-                  <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
-                </div>
-            </div>
-          </div>`;
+    let html = "";
+    if (currentTab === 'scorecard') {
+      d.problems.forEach(p => {
+        const count = d.userSends[p.id] || 0;
+        const score = calculateScore(p.id);
+        html += `<div class="card">
+          <strong>#${p.id} ${p.name}</strong>
+          <span class="p-score">${Math.round(score).toLocaleString()} p</span>
+          <div class="stepper">
+            <button class="btn-s" onclick="update('${p.id}',-1)">-</button>
+            <b style="font-size:24px;">${count}</b>
+            <button class="btn-s plus" onclick="update('${p.id}',1)">+</button>
+          </div>
+        </div>`;
       });
     } else if (currentTab === 'market') {
-      [...(d.problems || [])].map(p => ({...p, mVal: getMarketValue(p.id)}))
-      .sort((a,b) => b.mVal - a.mVal).forEach(p => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(p.mVal).toLocaleString()}</span></div>`;
+      d.problems.forEach(p => {
+        html += `<div class="card" style="display:flex; justify-content:space-between">
+          <span>${p.name}</span><span class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</span>
+        </div>`;
       });
     } else {
-      (d.leaderboard || []).forEach((u,i) => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}">
-          <span>${i+1}. ${u.name}</span><strong>${Math.round(u.score || 0).toLocaleString()} p</strong></div>`;
+      d.leaderboard.forEach((u,i) => {
+        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60':''}">
+          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()}</strong>
+        </div>`;
       });
     }
-    updateTimers();
+    document.getElementById('list').innerHTML = html;
   }
-
-  async function updateScore(pId, delta) {
-    if(isProcessing) return;
-    const countEl = document.getElementById(`count-${pId}`);
-    const ptsEl = document.getElementById(`pts-${pId}`);
-    
-    let oldCount = parseInt(countEl.innerText);
-    let newCount = Math.max(0, oldCount + delta);
-    if(oldCount === newCount) return;
-
-    // OPTIMISTISKT UI: Visa att vi jobbar
-    countEl.innerText = newCount;
-    ptsEl.innerText = "räknar...";
-    document.getElementById(`card-${pId}`).style.opacity = "0.5";
-
-    requestQueue.push({ pId, action: delta > 0 ? 'registerSend' : 'removeSend' });
-    processQueue();
-  }
-
-  async function processQueue() {
-    if (isProcessing || requestQueue.length === 0) return;
-    isProcessing = true;
-    const task = requestQueue.shift();
-    try {
-      const res = await call({ action: task.action, token: token, pId: task.pId });
-      cachedData = res;
-      render(); // Här uppdateras totalpoängen och problempoängen med riktig data från servern
-    } catch(e) {
-      fetchData(false);
-    } finally {
-      isProcessing = false;
-      processQueue();
-    }
-  }
-
-  function updateTimers() {
-    const endStr = getSetting('END_TIME');
-    if(!endStr) return;
-    const end = new Date(endStr).getTime();
-    if(isNaN(end)) return;
-    const remain = end - Date.now();
-    const txt = remain > 0 ? "Kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" : "Avslutad";
-    if(document.getElementById('sb-timer')) document.getElementById('sb-timer').innerText = txt;
-    if(document.getElementById('timer-display')) document.getElementById('timer-display').innerText = txt;
-  }
-
-  window.onload = () => {
-    if (action === 'scoreboard') { 
-      fetchScoreboard(); setInterval(fetchScoreboard, 30000); 
-    } else if (token) { 
-      fetchData(true); setInterval(() => !isProcessing && fetchData(false), 60000); 
-    }
-  };
 
   function setTab(t) { 
     currentTab = t; 
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t)); 
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-'+t).classList.add('active');
     render(); 
   }
+
+  window.onload = load;
+  setInterval(load, 60000);
 </script>
 </body>
 </html>
