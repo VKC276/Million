@@ -48,6 +48,7 @@
     #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
+    .btn-accent-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: var(--accent); color: white; cursor: pointer; border: none; }
     .btn-danger-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ffebee; color: var(--danger); background: white; cursor: pointer; }
   </style>
 </head>
@@ -292,16 +293,34 @@
     document.getElementById('adm-end').value = toLocalISO(data.settings.end);
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
     document.getElementById('admin-class-list').innerHTML = data.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass(this, '${c}')">Radera</button></div>`).join('');
-    // Uppdaterad med e-post visning
+    
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
-      <div class="row">
-        <div style="flex:1; overflow:hidden;">
+      <div class="row" style="padding: 12px;">
+        <div style="flex:1; overflow:hidden; margin-right: 10px;">
           <strong>${u.name}</strong> <small>(${u.userClass})</small><br>
           <small style="color:#888;">${u.email || 'Ingen e-post'}</small>
         </div>
-        <button class="btn-mini" style="margin-right:5px;" onclick="resetUser(this, '${u.id}')">Reset</button>
-        <button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
+        <div style="display:flex; gap:5px;">
+          <button class="btn-accent-mini" title="Skicka e-post med länk igen" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button>
+          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
+          <button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
+        </div>
       </div>`).join('');
+  }
+
+  async function resendWelcomeEmail(btn, name, email, length, userClass) {
+    if(!email || email === 'Ingen e-post') { alert("Användaren saknar e-postadress."); return; }
+    const originalText = btn.innerText;
+    btn.innerText = "...";
+    try {
+      // Vi anropar requestLogin på nytt med samma uppgifter, backenden skickar då ut länken igen
+      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${length}&userClass=${encodeURIComponent(userClass)}`);
+      const data = await res.json();
+      if(data.token) {
+        btn.innerText = "Skickat!"; btn.style.background = "#2ecc71";
+        setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--accent)"; }, 2000);
+      }
+    } catch (e) { btn.innerText = "Fel!"; }
   }
 
   async function addClass() {
