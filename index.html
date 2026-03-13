@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen</title>
+  <title>Miljontävlingen v1</title>
   <style>
     :root { 
       --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
@@ -35,7 +35,7 @@
 
     .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
     label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
-    input { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
+    input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; background: white; }
     .info-text { font-size: 12px; color: #777; line-height: 1.4; margin-bottom: 10px; }
     .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
     
@@ -66,6 +66,10 @@
   <div class="card" id="reg-form-container">
     <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
     <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
+    <label>Klass:</label>
+    <select id="reg-class">
+      <option value="Allmän">Laddar klasser...</option>
+    </select>
     <label>Din Längd (cm):</label><input type="number" id="reg-height" value="180">
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
@@ -127,7 +131,6 @@
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
   let updateQueue = {}, localSends = {};
 
-  // Hjälpfunktion för att fixa tidszon i admin-boxar
   function toLocalISO(dateStr) {
     if(!dateStr) return "";
     const d = new Date(dateStr);
@@ -141,7 +144,6 @@
     if (target) target.style.display = 'block';
   }
 
-  // Dynamiska filter-chips
   function renderClassFilters() {
     if (!cachedData || !cachedData.leaderboard) return;
     const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
@@ -158,6 +160,41 @@
     document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
     el.classList.add('active');
     renderApp();
+  }
+
+  async function fetchClassesForRegistration() {
+    try {
+      const res = await fetch(`${API_URL}?action=getClasses`);
+      const data = await res.json();
+      const select = document.getElementById('reg-class');
+      if (data.classes && data.classes.length > 0) {
+        select.innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+      } else {
+        select.innerHTML = '<option value="Allmän">Allmän</option>';
+      }
+    } catch (e) {
+      document.getElementById('reg-class').innerHTML = '<option value="Allmän">Allmän</option>';
+    }
+  }
+
+  async function registerUser() {
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const userClass = document.getElementById('reg-class').value;
+    const height = document.getElementById('reg-height').value || 180;
+    const btn = document.getElementById('btn-do-reg');
+    if(!name || !email) { alert("Namn och e-post måste fyllas i!"); return; }
+    btn.disabled = true; btn.innerText = "Behandlar...";
+    try {
+      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(userClass)}`);
+      const data = await res.json();
+      if(data.token) {
+        window.history.pushState({}, '', "?token=" + data.token);
+        document.getElementById('reg-token-link').value = window.location.href;
+        document.getElementById('reg-form-container').style.display = 'none';
+        document.getElementById('reg-result').style.display = 'block';
+      }
+    } catch (e) { alert("Ett fel uppstod!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
   }
 
   async function loadData(showLoading) {
@@ -180,7 +217,6 @@
     return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
   }
 
-  // Hamra-vänlig update (Optimistisk)
   async function update(pId, delta) {
     if (!localSends[pId]) localSends[pId] = 0;
     localSends[pId] = Math.max(0, localSends[pId] + delta);
@@ -206,10 +242,8 @@
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
-    
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
@@ -255,7 +289,6 @@
   function renderAdmin(data) {
     document.getElementById('adm-pot').value = data.settings.pot;
     document.getElementById('adm-ref').value = data.settings.refHeight;
-    // Fixat: Använd toLocalISO för att tid ska synas i boxarna
     document.getElementById('adm-start').value = toLocalISO(data.settings.start);
     document.getElementById('adm-end').value = toLocalISO(data.settings.end);
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
@@ -282,7 +315,10 @@
       loadData(true); 
       setInterval(refreshTimer, 1000);
       setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
-    } else switchView('register');
+    } else {
+      switchView('register');
+      fetchClassesForRegistration();
+    }
   };
 </script>
 </body>
