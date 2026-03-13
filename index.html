@@ -55,7 +55,7 @@
   <div class="card" id="reg-form-container">
     <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
     <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
-    <label>Din längd, används för att beräkna handikapp (cm):</label><input type="number" id="reg-height" value="180">
+    <label>Din längd (cm):</label><input type="number" id="reg-height" value="180">
     <label>Välj klass:</label><select id="reg-class"><option value="Allmän">Laddar klasser...</option></select>
     <button class="btn" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
@@ -85,8 +85,31 @@
     </select>
     <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
   </div>
-  <div class="grid"><div class="card"><h3>Problem</h3><div id="admin-problem-list"></div></div><div class="card"><h3>Klasser</h3><div id="admin-class-list"></div></div></div>
-  <div class="card"><h3>Deltagare</h3><div id="admin-user-list"></div></div>
+  <div class="grid">
+    <div class="card">
+      <h3>Problem</h3>
+      <div style="display:flex; gap:5px; margin-bottom:10px;">
+        <input type="text" id="new-p-id" placeholder="ID" style="width:50px; margin:0;">
+        <input type="text" id="new-p-name" placeholder="Namn" style="flex:1; margin:0;">
+        <button class="btn-mini" onclick="addProblem()">+</button>
+      </div>
+      <div id="admin-problem-list"></div>
+    </div>
+    <div class="card">
+      <h3>Klasser</h3>
+      <div style="display:flex; gap:5px; margin-bottom:10px;">
+        <input type="text" id="new-class-name" placeholder="Klassnamn" style="flex:1; margin:0;">
+        <button class="btn-mini" onclick="addClass()">+</button>
+      </div>
+      <div id="admin-class-list"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Deltagare</h3>
+    <div id="admin-user-list"></div>
+    <hr>
+    <button class="btn" style="background:var(--danger); margin-top:20px;" onclick="resetEverything()">NOLLSTÄLL ALLT (Farligt!)</button>
+  </div>
 </div>
 
 <div id="view-scoreboard" class="view">
@@ -116,17 +139,11 @@
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla", isCompClosed = false;
   let localSends = {}, updateQueue = {}, scoreboardClassIndex = 0, scoreboardRotationTimer = null;
 
+  // HJÄLPFUNKTIONER
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
   function toLocalISO(dStr) { if(!dStr) return ""; const d = new Date(dStr); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-
-  // Hjälpfunktion för att översätta tävlingsläge till läsbar text
   function getModeText(mode) {
-    const modes = {
-      'open_hcp': 'Öppen tävling med handikapp (HCP)',
-      'open_no_hcp': 'Öppen tävling (Ingen HCP)',
-      'class_hcp': 'Klassvis tävling med handikapp (HCP)',
-      'class_no_hcp': 'Klassvis tävling (Ingen HCP)'
-    };
+    const modes = { 'open_hcp': 'Öppen (HCP)', 'open_no_hcp': 'Öppen (Ingen HCP)', 'class_hcp': 'Klassvis (HCP)', 'class_no_hcp': 'Klassvis (Ingen HCP)' };
     return modes[mode] || 'Miljontävlingen';
   }
 
@@ -136,23 +153,20 @@
     try {
       const res = await fetch(`${API_URL}?${new URLSearchParams(p)}`);
       cachedData = await res.json();
-      
-      // Uppdatera rubriken i registreringsvyn om tävlingsläget finns
-      if (cachedData.settings && cachedData.settings.compMode) {
+      if (cachedData.settings && document.getElementById('reg-mode-display')) {
         document.getElementById('reg-mode-display').innerText = getModeText(cachedData.settings.compMode);
       }
-
       if(cachedData.currentUser && selectedClass === "Alla") selectedClass = cachedData.currentUser.userClass;
       action === 'scoreboard' ? renderScoreboard() : renderApp();
       switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
     } catch (e) { console.error(e); }
   }
 
+  // RENDER-FUNKTIONER (SCOREBOARD / APP)
   function renderApp() {
     const d = cachedData; if(!d || !d.currentUser) return;
     const mode = d.settings.compMode || 'open_hcp';
     d.problems.forEach(p => { if(!updateQueue[p.id]?.length) localSends[p.id] = d.userSends[p.id] || 0; });
-    
     let leaderboard = d.leaderboard.map(u => {
       let score = 0; const factor = mode.includes('no_hcp') ? 1.0 : u.factor;
       d.problems.forEach(p => {
@@ -162,27 +176,13 @@
       });
       return { ...u, score };
     }).sort((a,b) => b.score - a.score);
-
     const myScore = leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
-    
-    // Här lades tävlingsläget till i den lilla headern högst upp när man är inloggad
-    document.getElementById('header-box').innerHTML = `
-      <div class="card header-card">
-        <div>
-          <small>${getModeText(mode)}</small><br>
-          <strong>${d.currentUser.name}</strong><br>
-          <small>${mode.includes('no_hcp')?'Ingen HCP':`Handikapp: ${d.currentUser.factor.toFixed(2)}x`}</small>
-        </div>
-        <div style="text-align:right;">
-          <small>TOTALT</small><br>
-          <strong style="font-size:24px; color:#2ecc71;">${Math.round(myScore).toLocaleString()}</strong>
-        </div>
-      </div>`;
-    
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${getModeText(mode)}</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myScore).toLocaleString()}</strong></div></div>`;
     let html = "";
     if(currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        const val = (localSends[p.id] * d.currentUser.factor / (d.problemValues[p.id]?.totalShares || 1)) * d.settings.totalPot;
+        const shares = d.problemValues[p.id]?.totalShares || 0;
+        const val = shares > 0 ? (localSends[p.id] * d.currentUser.factor / shares) * d.settings.totalPot : 0;
         html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : Math.round(val).toLocaleString()+' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
       });
     } else if(currentTab === 'leaderboard') {
@@ -193,7 +193,11 @@
         html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id===d.currentUser.id?'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small>(${u.userClass})</small></span><strong>${Math.round(u.score).toLocaleString()}</strong></div>`;
       });
     } else {
-      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0)+1)).toLocaleString()}</strong></div>`; });
+      d.problems.forEach(p => { 
+        const rawShares = d.problemValues[p.id]?.totalShares || 0;
+        const currentPrice = rawShares > 0 ? Math.round(d.settings.totalPot / Math.max(1.0, rawShares)) : d.settings.totalPot;
+        html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${currentPrice.toLocaleString()}</strong></div>`; 
+      });
     }
     document.getElementById('list').innerHTML = html;
     refreshTimer();
@@ -202,7 +206,6 @@
   function renderScoreboard() {
     const d = cachedData; if(!d) return;
     const mode = d.settings.compMode || 'open_hcp', isClassMode = mode.indexOf('class_') === 0;
-    
     let leaderboard = d.leaderboard.map(u => {
       let score = 0; const factor = mode.includes('no_hcp') ? 1.0 : u.factor;
       d.problems.forEach(p => {
@@ -212,30 +215,59 @@
       });
       return { ...u, score };
     }).sort((a,b) => b.score - a.score);
-
     const classes = [...new Set(d.leaderboard.map(u => u.userClass))].sort();
     let currentClass = "Alla", title = "TOPPLISTA (TOTAL)", list = leaderboard;
-
     if(isClassMode && classes.length > 0) {
       if(scoreboardClassIndex >= classes.length) scoreboardClassIndex = 0;
-      currentClass = classes[scoreboardClassIndex];
-      title = `TOPPLISTA: ${currentClass.toUpperCase()}`;
+      currentClass = classes[scoreboardClassIndex]; title = `TOPPLISTA: ${currentClass.toUpperCase()}`;
       list = leaderboard.filter(u => u.userClass === currentClass);
       if(!scoreboardRotationTimer) scoreboardRotationTimer = setInterval(() => { scoreboardClassIndex++; renderScoreboard(); }, 10000);
     }
-
-    // Scoreboarden fick också en liten text som visar tävlingsformen längst upp
     document.getElementById('sb-list').innerHTML = `<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px; display:flex; justify-content:space-between;"><div><span>${title}</span><br><small style="font-weight:normal;opacity:0.8;">${getModeText(mode)}</small></div><span>${isClassMode ? (scoreboardClassIndex+1)+'/'+classes.length : ''}</span></h3>` + 
       list.slice(0,25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name}</span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
-
     document.getElementById('sb-market').innerHTML = `<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN ${isClassMode?'('+currentClass+')':''}</h3><div class="column-split" style="padding:10px;">` + 
       d.problems.map(p => {
         const shares = (isClassMode && d.problemValues[p.id]?.allClasses) ? (d.problemValues[p.id].allClasses[currentClass] || 0) : (d.problemValues[p.id]?.totalShares || 0);
-        return `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot/(shares||1)).toLocaleString()}</strong></div>`;
+        const currentPrice = shares > 0 ? Math.round(d.settings.totalPot / Math.max(1.0, shares)) : d.settings.totalPot;
+        return `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${currentPrice.toLocaleString()}</strong></div>`;
       }).join('') + `</div>`;
     refreshTimer();
   }
 
+  // ADMIN FUNKTIONER
+  async function loadAdmin() {
+    adminPwd = adminPwd || prompt("Lösenord:");
+    try { const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`); renderAdmin(await res.json()); switchView('admin'); } catch(e){ location.reload(); }
+  }
+  function renderAdmin(d) {
+    document.getElementById('adm-pot').value = d.settings.pot; document.getElementById('adm-ref').value = d.settings.refHeight;
+    document.getElementById('adm-start').value = toLocalISO(d.settings.start); document.getElementById('adm-end').value = toLocalISO(d.settings.end);
+    document.getElementById('adm-mode').value = d.settings.compMode;
+    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-danger-mini" onclick="deleteProblem('${p.id}')">Ta bort</button></div>`).join('');
+    document.getElementById('admin-class-list').innerHTML = d.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-danger-mini" onclick="deleteClass('${c}')">Ta bort</button></div>`).join('');
+    // HÄR ÄR DEN UPPDATERADE RADEN MED EPOST OCH LÄNK-KNAPP
+    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><div style="flex:1;"><strong>${u.name}</strong><br><small>${u.email} (${u.userClass})</small></div><div style="display:flex; gap:4px;"><button class="btn-accent-mini" onclick="resendLink('${u.name}','${u.email}')">Länk</button><button class="btn-mini" onclick="resetUser('${u.id}')">Nolla</button><button class="btn-danger-mini" onclick="deleteUser('${u.id}')">X</button></div></div>`).join('');
+  }
+  async function saveSettings() {
+    const p = { action:'updateSettings', pot:document.getElementById('adm-pot').value, refHeight:document.getElementById('adm-ref').value, start:document.getElementById('adm-start').value, end:document.getElementById('adm-end').value, compMode:document.getElementById('adm-mode').value };
+    await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`); loadAdmin();
+  }
+  async function addProblem() {
+    const id = document.getElementById('new-p-id').value, name = document.getElementById('new-p-name').value;
+    if(!id || !name) return; await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${id}&name=${encodeURIComponent(name)}`); loadAdmin();
+  }
+  async function addClass() {
+    const name = document.getElementById('new-class-name').value;
+    if(!name) return; await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(name)}`); loadAdmin();
+  }
+  async function resendLink(name, email) { if(confirm("Skicka länk på nytt till " + name + "?")) { await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`); alert("Länk skickad!"); } }
+  async function deleteProblem(id) { if(confirm("Ta bort problem?")) { await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${id}`); loadAdmin(); } }
+  async function deleteClass(name) { if(confirm("Ta bort klass?")) { await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(name)}`); loadAdmin(); } }
+  async function resetUser(id) { if(confirm("Nolla deltagarens poäng?")) { await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${id}`); loadAdmin(); } }
+  async function deleteUser(id) { if(confirm("Radera deltagaren helt?")) { await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${id}`); loadAdmin(); } }
+  async function resetEverything() { if(confirm("ÄR DU SÄKER? Detta raderar ALLA deltagare och ALLA bestigningar!")) { await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); loadAdmin(); } }
+
+  // ÖVRIG LOGIK (TIMER, TABBAR, UPDATE)
   async function update(pId, delta) {
     if(isCompClosed) return;
     localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
@@ -248,7 +280,6 @@
       catch (e) { await new Promise(r => setTimeout(r, 2000)); }
     }
   }
-
   function refreshTimer() {
     if(!cachedData) return;
     const start = new Date(cachedData.settings.startTime).getTime(), end = new Date(cachedData.settings.endTime).getTime(), now = Date.now();
@@ -258,7 +289,6 @@
     const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
     document.querySelectorAll('.timer-banner').forEach(el => { el.innerText = label + (target>0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : ""); el.style.background = color; });
   }
-
   async function registerUser() {
     const n = document.getElementById('reg-name').value, e = document.getElementById('reg-email').value, h = document.getElementById('reg-height').value, c = document.getElementById('reg-class').value;
     if(!n || !e) return;
@@ -268,22 +298,14 @@
       if(d.token) { document.getElementById('reg-form-container').style.display='none'; document.getElementById('reg-result').style.display='block'; document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + d.token; }
     } catch (err) { alert("Fel vid registrering"); }
   }
-
   async function loadClassesForRegistration() {
     try { 
-      const res = await fetch(`${API_URL}?action=getClasses`); 
-      const d = await res.json(); 
+      const res = await fetch(`${API_URL}?action=getClasses`); const d = await res.json(); 
       document.getElementById('reg-class').innerHTML = d.classes.map(c => `<option value="${c}">${c}</option>`).join('');
-      
-      // Vid första laddning för en ny användare hämtar vi även appdata för att visa tävlingsformen
-      const resApp = await fetch(`${API_URL}?action=getAppData`);
-      const dApp = await resApp.json();
-      if (dApp.settings) {
-        document.getElementById('reg-mode-display').innerText = getModeText(dApp.settings.compMode);
-      }
+      const resApp = await fetch(`${API_URL}?action=getAppData`); const dApp = await resApp.json();
+      if (dApp.settings) document.getElementById('reg-mode-display').innerText = getModeText(dApp.settings.compMode);
     } catch(e){}
   }
-
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
@@ -291,23 +313,6 @@
     else if(action === 'scoreboard' || token) { loadData(true); setInterval(() => { if(!document.hidden) loadData(false); }, 30000); setInterval(refreshTimer, 1000); }
     else { switchView('register'); loadClassesForRegistration(); }
   };
-
-  async function loadAdmin() {
-    adminPwd = adminPwd || prompt("Lösenord:");
-    try { const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`); renderAdmin(await res.json()); switchView('admin'); } catch(e){ location.reload(); }
-  }
-  function renderAdmin(d) {
-    document.getElementById('adm-pot').value = d.settings.pot; document.getElementById('adm-ref').value = d.settings.refHeight;
-    document.getElementById('adm-start').value = toLocalISO(d.settings.start); document.getElementById('adm-end').value = toLocalISO(d.settings.end);
-    document.getElementById('adm-mode').value = d.settings.compMode;
-    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span></div>`).join('');
-    document.getElementById('admin-class-list').innerHTML = d.classes.map(c => `<div class="row"><span>${c}</span></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} (${u.userClass})</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
-  }
-  async function saveSettings() {
-    const p = { action:'updateSettings', pot:document.getElementById('adm-pot').value, refHeight:document.getElementById('adm-ref').value, start:document.getElementById('adm-start').value, end:document.getElementById('adm-end').value, compMode:document.getElementById('adm-mode').value };
-    await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`); loadAdmin();
-  }
 </script>
 </body>
 </html>
