@@ -23,7 +23,8 @@
     .btn-s.plus { background: var(--primary); color: white; }
     .market-val { color: var(--primary); font-weight: bold; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-    .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: opacity 0.2s; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     
     /* Admin-specifik CSS */
     #view-scoreboard, #view-admin { max-width: 1000px; }
@@ -31,7 +32,8 @@
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
     .admin-btn-group { display: flex; gap: 5px; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; }
+    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    .btn-mini:disabled { opacity: 0.5; }
     .btn-mini.danger { color: var(--danger); border-color: var(--danger); }
     .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
@@ -54,19 +56,19 @@
       <div><label>Starttid:</label><input type="datetime-local" id="adm-start"></div>
       <div><label>Sluttid:</label><input type="datetime-local" id="adm-end"></div>
     </div>
-    <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara Inställningar</button>
+    <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara Inställningar</button>
   </div>
   <div class="grid">
     <div class="card">
       <h3>Problem</h3>
       <input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn">
-      <button class="btn" onclick="addProblem()">Lägg till</button>
+      <button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button>
       <div id="admin-problem-list" style="margin-top:15px"></div>
     </div>
     <div class="card">
       <h3>Deltagare</h3>
       <div id="admin-user-list"></div>
-      <button class="btn" style="background:black; margin-top:20px" onclick="confirmResetAll()">⚠️ NOLLSTÄLL HELA TÄVLINGEN</button>
+      <button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">⚠️ NOLLSTÄLL HELA TÄVLINGEN</button>
     </div>
   </div>
 </div>
@@ -123,19 +125,30 @@
     return d.settings.totalPot / (totalShares + 1.0);
   }
 
-  // --- OPTIMERAD ADMIN LOGIK (INGEN RELOAD) ---
-  async function adminAction(params) {
-    const btn = event?.target;
+  // --- OPTIMERAD ADMIN LOGIK (INGEN RELOAD, INGA POPUPS) ---
+  async function adminAction(params, btn, loadingText) {
     const originalText = btn ? btn.innerText : "";
-    if(btn && btn.tagName === 'BUTTON') btn.innerText = "...";
+    if(btn) {
+      btn.innerText = loadingText || "Arbetar...";
+      btn.disabled = true;
+    }
     
     try {
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
       const data = await res.json();
-      if (data.error) { alert("Fel: " + data.error); } 
-      else { renderAdmin(data); }
-    } catch (e) { alert("Anslutningsfel"); } 
-    finally { if(btn && btn.tagName === 'BUTTON') btn.innerText = originalText; }
+      if (data.error) { 
+        alert("Fel: " + data.error); 
+      } else { 
+        renderAdmin(data); 
+      }
+    } catch (e) { 
+      alert("Anslutningsfel"); 
+    } finally { 
+      if(btn) {
+        btn.innerText = originalText;
+        btn.disabled = false;
+      }
+    }
   }
 
   async function loadAdmin() {
@@ -161,7 +174,7 @@
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `
       <div class="row">
         <span><strong>#${p.id}</strong> ${p.name}</span>
-        <button class="btn-mini danger" onclick="deleteProblem('${p.id}')">Radera</button>
+        <button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button>
       </div>
     `).join('');
     
@@ -169,34 +182,39 @@
       <div class="row">
         <span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
         <div class="admin-btn-group">
-          <button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button>
-          <button class="btn-mini danger" onclick="deleteUser('${u.id}')">Radera</button>
+          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
+          <button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Radera</button>
         </div>
       </div>
     `).join('');
   }
 
   async function saveSettings() {
+    const btn = document.getElementById('btn-save-settings');
     await adminAction({
       action: 'updateSettings',
       pot: document.getElementById('adm-pot').value,
       refHeight: document.getElementById('adm-ref').value,
       start: document.getElementById('adm-start').value,
       end: document.getElementById('adm-end').value
-    });
-    alert("Inställningar sparade!");
+    }, btn, "Sparar...");
   }
 
   async function addProblem() {
+    const btn = document.getElementById('btn-add-problem');
     const idInp = document.getElementById('new-p-id'), nameInp = document.getElementById('new-p-name');
-    await adminAction({ action: 'addProblem', pId: idInp.value, name: nameInp.value });
+    if(!idInp.value || !nameInp.value) return;
+    await adminAction({ action: 'addProblem', pId: idInp.value, name: nameInp.value }, btn, "Lägger till...");
     idInp.value = ""; nameInp.value = "";
   }
 
-  async function deleteProblem(id) { if(confirm("Radera problem?")) await adminAction({ action: 'deleteProblem', pId: id }); }
-  async function resetUser(id) { if(confirm("Nollställ användare?")) await adminAction({ action: 'resetUser', userId: id }); }
-  async function deleteUser(id) { if(confirm("Radera användare helt?")) await adminAction({ action: 'deleteUser', userId: id }); }
-  async function confirmResetAll() { if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }); }
+  async function deleteProblem(btn, id) { if(confirm("Radera problem?")) await adminAction({ action: 'deleteProblem', pId: id }, btn, "Raderar..."); }
+  async function resetUser(btn, id) { if(confirm("Nollställ användare?")) await adminAction({ action: 'resetUser', userId: id }, btn, "Nollställer..."); }
+  async function deleteUser(btn, id) { if(confirm("Radera användare helt?")) await adminAction({ action: 'deleteUser', userId: id }, btn, "Tar bort..."); }
+  async function confirmResetAll() { 
+    const btn = document.getElementById('btn-reset-all');
+    if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, btn, "Återställer systemet..."); 
+  }
 
   // --- CORE LOGIK ---
   async function loadData(showLoading) {
