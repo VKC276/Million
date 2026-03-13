@@ -8,7 +8,6 @@
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; transition: opacity 0.2s; }
-    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
     .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: #27ae60; }
@@ -31,17 +30,17 @@
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Ansluter...
+  <strong>Miljontävlingen</strong><br>Laddar data...
 </div>
 
 <div id="view-scoreboard" class="view">
     <div class="card" style="background:#2c3e50; color:white; text-align:center;">
         <h2 style="margin:0">Scoreboard</h2>
-        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">Laddar...</div>
+        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">--:--</div>
     </div>
     <div class="sb-container">
-        <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
-        <div><h3 class="sb-title">Börsen (Värde nu)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
+        <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
+        <div><h3 class="sb-title">Börsen (Marknadsvärde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
     </div>
 </div>
 
@@ -49,7 +48,7 @@
   <div id="timer-display" class="timer-banner"></div>
   <div id="header-box"></div>
   <div style="display:flex; border-radius:8px; overflow:hidden; margin-bottom:15px;">
-    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Scorecard</button>
+    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Mitt Scorecard</button>
     <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
     <button id="btn-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
   </div>
@@ -79,33 +78,37 @@
     return cachedData.settings[key] || cachedData.settings[key.toLowerCase()] || null;
   }
 
-  // --- MATEMATISK KÄRNA ---
-  function calculatePotentialValue(pId, userFactor) {
+  // Hjälpfunktion för andelar
+  function getShares(count, factor) {
+    if (count <= 0) return 0;
+    const base = count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1;
+    return base * factor;
+  }
+
+  // Beräknar aktuellt värde för en specifik användare på ett problem
+  function getCurrentUserScore(pId) {
     const d = cachedData;
     const pot = getSetting('TOTAL_POT') || 1000000;
-    const pData = (d.problemValues && d.problemValues[pId]) ? d.problemValues[pId] : { totalShares: 0 };
-    
-    const myCurrentSends = (d.userSends && d.userSends[pId]) || 0;
-    const nextSendCount = myCurrentSends + 1;
-    
-    // Andelar: 1.0 för första, +0.1 för varje nästa (max 2.0)
-    const getBaseShare = (count) => count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1);
-    
-    const myPotentialShares = getBaseShare(nextSendCount) * userFactor;
-    const myOldShares = getBaseShare(myCurrentSends) * userFactor;
-    
-    // Om ingen klättrat alls
-    if (pData.totalShares <= 0) return pot;
+    const myCount = (d.userSends && d.userSends[pId]) || 0;
+    if (myCount === 0) return 0;
 
-    // Ny total andel = Gammal total - Min gamla + Min nya
-    const newTotalShares = pData.totalShares - myOldShares + myPotentialShares;
+    const pData = (d.problemValues && d.problemValues[pId]) || { totalShares: 0 };
+    if (pData.totalShares <= 0) return pot; // Borde inte hända om myCount > 0
+
+    const myShares = getShares(myCount, d.currentUser.factor || 1);
+    return (myShares / pData.totalShares) * pot;
+  }
+
+  // Beräknar vad NÄSTA person (HCP 1.0) skulle tjäna
+  function getMarketValue(pId) {
+    const d = cachedData;
+    const pot = getSetting('TOTAL_POT') || 1000000;
+    const pData = (d.problemValues && d.problemValues[pId]) || { totalShares: 0 };
     
-    // Värdet för nästa send = (Mina nya totala andelar / Nya totala andelar) * Pot - (Mina gamla poäng)
-    // Men för enkelhetens skull visar vi vad hela din post blir värd om du gör en till:
-    const totalValueAfter = (myPotentialShares / newTotalShares) * pot;
-    const totalValueBefore = myOldShares > 0 ? (myOldShares / pData.totalShares) * pot : 0;
+    if (pData.totalShares <= 0) return pot;
     
-    return totalValueAfter - totalValueBefore;
+    const nextTotalShares = pData.totalShares + 1.0; // +1.0 för en ny person med HCP 1.0
+    return (1.0 / nextTotalShares) * pot;
   }
 
   async function call(params) {
@@ -133,16 +136,14 @@
 
   function renderScoreboard() {
     const d = cachedData;
-    const pot = getSetting('TOTAL_POT') || 1000000;
+    if(!d) return;
     
     document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,10).map((u,i) => `
       <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${Math.round(u.score || 0).toLocaleString()} p</span></div>
-    `).join('') || '<div class="sb-row">Inga resultat</div>';
+    `).join('') || '<div class="sb-row">Väntar...</div>';
 
     const sorted = [...(d.problems || [])].map(p => {
-      // Marknadsvärde på SB = Vad nästa person med HCP 1.0 får
-      const val = calculatePotentialValue(p.id, 1.0);
-      return {...p, val: Math.round(val)};
+      return {...p, val: Math.round(getMarketValue(p.id))};
     }).sort((a,b) => b.val - a.val);
 
     document.getElementById('sb-market-full').innerHTML = sorted.slice(0,10).map(p => `
@@ -157,40 +158,38 @@
     const list = document.getElementById('list');
     list.innerHTML = "";
 
-    const userScore = (d.leaderboard || []).find(u => u.name === d.currentUser.name)?.score || 0;
+    const userScoreTotal = (d.leaderboard || []).find(u => u.name === d.currentUser.name)?.score || 0;
 
     document.getElementById('header-box').innerHTML = `
       <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
         <div><small>HCP: ${(d.currentUser.factor || 1).toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>DIN POÄNG</small><br><strong style="color:#2ecc71; font-size:20px;">${Math.round(userScore).toLocaleString()}</strong></div>
+        <div style="text-align:right;"><small>DIN TOTAL</small><br><strong style="color:#2ecc71; font-size:20px;">${Math.round(userScoreTotal).toLocaleString()}</strong></div>
       </div>`;
 
-    if(currentTab === 'scorecard' || currentTab === 'market') {
+    if(currentTab === 'scorecard') {
       (d.problems || []).forEach(p => {
         const myCount = (d.userSends && d.userSends[p.id]) || 0;
-        const nextVal = calculatePotentialValue(p.id, d.currentUser.factor);
+        const myProbScore = getCurrentUserScore(p.id);
 
-        if(currentTab === 'scorecard') {
-          list.innerHTML += `
-            <div class="card" id="card-${p.id}">
-              <div class="p-val">
-                <small style="font-size:10px; opacity:0.6; display:block;">NÄSTA SEND</small>
-                <span id="pts-${p.id}">+${Math.round(nextVal).toLocaleString()} p</span>
-              </div>
-              <strong>#${p.id} ${p.name}</strong>
-              <div class="stepper">
-                <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
-                <b style="font-size:24px;" id="count-${p.id}">${myCount}</b>
-                <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
-              </div>
-            </div>`;
-        } else {
-          list.innerHTML += `
-            <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-              <span>#${p.id} ${p.name}</span>
-              <div style="text-align:right;"><span class="market-val">${Math.round(nextVal).toLocaleString()}</span><br><small style="opacity:0.5">Din nästa</small></div>
-            </div>`;
-        }
+        list.innerHTML += `
+          <div class="card" id="card-${p.id}">
+            <div class="p-val" id="pts-${p.id}">${Math.round(myProbScore).toLocaleString()} p</div>
+            <strong>#${p.id} ${p.name}</strong>
+            <div class="stepper">
+              <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
+              <b style="font-size:24px;" id="count-${p.id}">${myCount}</b>
+              <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
+            </div>
+          </div>`;
+      });
+    } else if (currentTab === 'market') {
+      [...(d.problems || [])].map(p => ({...p, mVal: getMarketValue(p.id)}))
+      .sort((a,b) => b.mVal - a.mVal).forEach(p => {
+        list.innerHTML += `
+          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>#${p.id} ${p.name}</span>
+            <div style="text-align:right;"><span class="market-val">${Math.round(p.mVal).toLocaleString()}</span><br><small style="opacity:0.5">Nästa klättrare får</small></div>
+          </div>`;
       });
     } else {
       (d.leaderboard || []).forEach((u,i) => {
@@ -209,7 +208,6 @@
     let newCount = Math.max(0, currentCount + delta);
     if(currentCount === newCount) return;
 
-    // Optimistisk uppdatering
     countEl.innerText = newCount;
     ptsEl.innerText = "...";
     cardEl.style.opacity = "0.6";
@@ -226,7 +224,7 @@
       cachedData = await call({ action: task.action, token: token, pId: task.pId });
       render();
     } catch(e) {
-      alert("Kunde inte spara klicket.");
+      alert("Fel vid sparning.");
       fetchData(false);
     } finally {
       isProcessing = false;
@@ -251,7 +249,7 @@
       fetchData(true); setInterval(() => isTabActive && !isProcessing && requestQueue.length === 0 && fetchData(false), 60000); 
     } else { 
       switchView('loading');
-      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk.";
+      document.getElementById('view-loading').innerHTML = "Använd din personliga länk.";
     }
   };
 
