@@ -8,27 +8,27 @@
     body { font-family: sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .header-card { background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; }
+    .header-card { background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
-    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: #27ae60; }
-    .p-score { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
+    .p-score { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
-    .market-val { color: #27ae60; font-weight: bold; }
+    .market-val { color: #27ae60; font-weight: bold; font-family: monospace; }
   </style>
 </head>
 <body>
 
-<div id="loading" style="text-align:center; padding-top:50px;">Laddar...</div>
+<div id="loading" style="text-align:center; padding-top:100px; font-weight:bold;">Laddar din klättring...</div>
 
 <div id="app" class="view">
   <div id="header"></div>
   <div class="tab-nav">
-    <button id="tab-scorecard" class="tab-btn active" onclick="setTab('scorecard')">Mitt Scorecard</button>
-    <button id="tab-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">Leaderboard</button>
-    <button id="tab-market" class="tab-btn" onclick="setTab('market')">Börsen</button>
+    <button id="tab-scorecard" class="tab-btn active" onclick="setTab('scorecard')">MITT SCORECARD</button>
+    <button id="tab-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
+    <button id="tab-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
   </div>
   <div id="list"></div>
 </div>
@@ -40,86 +40,101 @@
   let currentTab = 'scorecard';
   let isProcessing = false;
 
-  function getShares(count, factor) {
+  // Samma logik som i GS: 1.0 för första, +0.1 för varje därefter
+  function getMyShares(count, factor) {
     if (!count || count <= 0) return 0;
-    let base = count === 1 ? 1.0 : 1.0 + (Math.min(count, 10) - 1) * 0.1;
+    let base = 1.0;
+    if (count > 1) base += (Math.min(count, 10) - 1) * 0.1;
     return base * (factor || 1);
   }
 
-  function calculateScore(pId) {
+  function getProblemScore(pId) {
     if (!cachedData) return 0;
-    const myCount = cachedData.userSends[pId] || 0;
+    const myCount = (cachedData.userSends && cachedData.userSends[pId]) || 0;
     if (myCount === 0) return 0;
     
     const pVal = cachedData.problemValues[pId];
     const pot = cachedData.settings?.totalPot || 1000000;
     
     if (pVal && pVal.totalShares > 0) {
-      const myShares = getShares(myCount, cachedData.currentUser.factor);
-      return (myShares / pVal.totalShares) * pot;
+      const myShares = getMyShares(myCount, cachedData.currentUser.factor);
+      const score = (myShares / pVal.totalShares) * pot;
+      return isNaN(score) ? 0 : score;
     }
-    return pot;
-  }
-
-  function getMarketValue(pId) {
-    const pot = cachedData?.settings?.totalPot || 1000000;
-    const totalShares = cachedData?.problemValues[pId]?.totalShares || 0;
-    return pot / (totalShares + 1.0);
+    return pot; // Om jag är ensam på problemet
   }
 
   async function update(pId, delta) {
     if (isProcessing) return;
     isProcessing = true;
-    const act = delta > 0 ? 'registerSend' : 'removeSend';
-    const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-    cachedData = await res.json();
-    isProcessing = false;
-    render();
+    
+    // Optimistisk låsning av UI
+    const countEl = document.getElementById(`count-${pId}`);
+    if(countEl) countEl.style.opacity = "0.3";
+
+    try {
+      const act = delta > 0 ? 'registerSend' : 'removeSend';
+      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+      cachedData = await res.json();
+    } catch (e) {
+      console.error("Fel vid uppdatering:", e);
+    } finally {
+      isProcessing = false;
+      render();
+    }
   }
 
   async function load() {
-    const res = await fetch(`${API_URL}?token=${token}&action=getAppData`);
-    cachedData = await res.json();
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
-    render();
+    if (isProcessing) return;
+    try {
+      const res = await fetch(`${API_URL}?token=${token}&action=getAppData`);
+      cachedData = await res.json();
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      render();
+    } catch(e) { console.error("Laddningsfel:", e); }
   }
 
   function render() {
     const d = cachedData;
+    if (!d || !d.currentUser) return;
+
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
     document.getElementById('header').innerHTML = `
       <div class="card header-card">
-        <span><strong>${d.currentUser.name}</strong></span>
-        <span style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()} p</span>
+        <div><small>KLÄTTRARE</small><br><strong>${d.currentUser.name}</strong></div>
+        <div style="text-align:right;"><small>TOTAL POÄNG</small><br><strong style="font-size:22px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
       </div>`;
 
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
         const count = d.userSends[p.id] || 0;
-        const score = calculateScore(p.id);
-        html += `<div class="card">
+        const score = getProblemScore(p.id);
+        html += `<div class="card" id="card-${p.id}">
           <strong>#${p.id} ${p.name}</strong>
-          <span class="p-score">${Math.round(score).toLocaleString()} p</span>
+          <div class="p-score">${Math.round(score).toLocaleString()} p</div>
           <div class="stepper">
             <button class="btn-s" onclick="update('${p.id}',-1)">-</button>
-            <b style="font-size:24px;">${count}</b>
+            <b id="count-${p.id}" style="font-size:26px;">${count}</b>
             <button class="btn-s plus" onclick="update('${p.id}',1)">+</button>
           </div>
         </div>`;
       });
     } else if (currentTab === 'market') {
       d.problems.forEach(p => {
-        html += `<div class="card" style="display:flex; justify-content:space-between">
-          <span>${p.name}</span><span class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</span>
+        const totalShares = d.problemValues[p.id]?.totalShares || 0;
+        const pot = d.settings?.totalPot || 1000000;
+        const mVal = pot / (totalShares + 1.0);
+        html += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(mVal).toLocaleString()} p</span>
         </div>`;
       });
     } else {
       d.leaderboard.forEach((u,i) => {
         html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60':''}">
-          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()}</strong>
+          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
         </div>`;
       });
     }
@@ -134,7 +149,7 @@
   }
 
   window.onload = load;
-  setInterval(load, 60000);
+  setInterval(load, 45000); // Bakgrundsuppdatering var 45:e sekund
 </script>
 </body>
 </html>
