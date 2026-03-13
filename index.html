@@ -73,7 +73,7 @@
   <div id="reg-result" style="display:none;" class="card">
     <p style="color:var(--primary); font-weight:bold;">Klart! Din unika länk är skapad.</p>
     <input type="text" id="reg-token-link" readonly onclick="this.select()">
-    <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD NU</button>
+    <button class="btn" onclick="openMyScorecard()">ÖPPNA SCORECARD NU</button>
   </div>
 </div>
 
@@ -135,6 +135,14 @@
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
     const target = document.getElementById('view-' + id);
     if (target) target.style.display = 'block';
+  }
+
+  // NY: Navigerar till den skapade token-länken
+  function openMyScorecard() {
+    const link = document.getElementById('reg-token-link').value;
+    if (link) {
+      window.location.href = link;
+    }
   }
 
   async function loadClassesForRegistration() {
@@ -334,6 +342,7 @@
       if(data.token) {
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
+        // Sparar ner länken i inputfältet så att openMyScorecard kan hitta den
         document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + data.token;
       }
     } catch (e) { btn.innerText = "Fel! Försök igen"; }
