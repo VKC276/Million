@@ -57,7 +57,7 @@
     <input type="number" id="reg-height" value="180">
     <label>Välj Klass:</label>
     <select id="reg-class"><option value="Allmän">Hämtar klasser...</option></select>
-    <p style="font-size:11px; color:#777;">Längd används för att räkna ut handikapp. Standard är 180cm.</p>
+    <p style="font-size:11px; color:#777;">Längd används för att räkna ut handikapp. Om inget värde anges sätts detta automatiskt till 180.</p>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
@@ -102,7 +102,7 @@
 </div>
 
 <script>
-  const API_URL = "DIN_URL_HÄR"; // KOM IHÅG ATT UPPDATERA DENNA!
+  const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
@@ -112,15 +112,16 @@
 
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    document.getElementById('view-' + id).style.display = 'block';
+    const target = document.getElementById('view-' + id);
+    if(target) target.style.display = 'block';
   }
 
   async function registerUser() {
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim();
-    const height = document.getElementById('reg-height').value;
+    const height = document.getElementById('reg-height').value || 180;
     const uClass = document.getElementById('reg-class').value;
-    if(!name || !email) return alert("Fyll i allt!");
+    if(!name || !email) return alert("Fyll i namn och e-post!");
     document.getElementById('btn-do-reg').disabled = true;
     try {
       const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(uClass)}`);
@@ -131,7 +132,7 @@
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
       }
-    } catch (e) { alert("Fel!"); }
+    } catch (e) { alert("Ett fel uppstod!"); }
   }
 
   async function loadClasses() {
@@ -146,7 +147,8 @@
   async function loadData(showLoading) {
     if(showLoading) switchView('loading');
     try {
-      const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+      const activeToken = token || new URLSearchParams(window.location.search).get('token');
+      const res = await fetch(`${API_URL}?action=getAppData&token=${activeToken}`);
       cachedData = await res.json();
       renderApp();
       switchView('app');
@@ -160,7 +162,6 @@
     
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass} | HCP ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
-    // Hantera Filter-bar
     const filterCont = document.getElementById('filter-container');
     if (currentTab === 'leaderboard') {
       let fHtml = `<div class="filter-bar"><button class="filter-btn ${currentFilter==='ALLA'?'active':''}" onclick="setFilter('ALLA')">ALLA</button>`;
@@ -199,10 +200,11 @@
 
   async function processQueue(pId) {
     if(updateQueue[pId].length > 1) return;
+    const activeToken = token || new URLSearchParams(window.location.search).get('token');
     while(updateQueue[pId].length > 0) {
       const act = updateQueue[pId][0];
       try {
-        const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+        const res = await fetch(`${API_URL}?token=${activeToken}&action=${act}&pId=${pId}`);
         cachedData = await res.json();
         updateQueue[pId].shift();
         renderApp();
@@ -224,12 +226,12 @@
 
   async function addClass() {
     const name = document.getElementById('adm-new-class').value;
-    const res = await fetch(`${API_URL}?action=addClass&pwd=${adminPwd}&className=${encodeURIComponent(name)}`);
+    await fetch(`${API_URL}?action=addClass&pwd=${adminPwd}&className=${encodeURIComponent(name)}`);
     loadAdmin();
   }
 
   async function deleteClass(name) {
-    const res = await fetch(`${API_URL}?action=deleteClass&pwd=${adminPwd}&className=${encodeURIComponent(name)}`);
+    await fetch(`${API_URL}?action=deleteClass&pwd=${adminPwd}&className=${encodeURIComponent(name)}`);
     loadAdmin();
   }
 
