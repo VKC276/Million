@@ -5,34 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    :root { --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b; --timer-bg: #3498db; }
+    :root { 
+      --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
+      --timer-bg: #3498db;
+    }
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
     .view { display: none; max-width: 500px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
     .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; }
+    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
+    
+    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
+    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
+    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
+    .btn-s.plus { background: var(--primary); color: white; }
+    
+    .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
+    @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
+
+    .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
+    label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
+    input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
     .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
-    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
     
     #view-admin { max-width: 900px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
     
-    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
-    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 45px; height: 45px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
-    input, select { width: 100%; padding: 12px; margin: 5px 0 10px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
+    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
+    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
     
     .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
     .filter-btn { background: white; border: 1px solid #ccc; padding: 6px 12px; border-radius: 20px; font-size: 11px; white-space: nowrap; cursor: pointer; }
     .filter-btn.active { background: var(--dark); color: white; }
-    
-    .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
-    @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
   </style>
 </head>
 <body>
@@ -42,16 +50,16 @@
 <div id="view-register" class="view">
   <div class="card" style="text-align:center; background:var(--dark); color:white;"><h2>Anmälan</h2></div>
   <div class="card" id="reg-form-container">
-    <label>Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
-    <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
+    <label>Namn:</label><input type="text" id="reg-name">
+    <label>E-post:</label><input type="email" id="reg-email">
     <label>Längd (cm):</label><input type="number" id="reg-height" value="180">
     <label>Klass:</label><select id="reg-class"><option value="Allmän">Hämtar...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
-    <p>Länk skickad till din e-post!</p>
+    <p>Klart! Länk skickad.</p>
     <input type="text" id="reg-token-link" readonly onclick="this.select()">
-    <button class="btn" onclick="location.reload()">ÖPPNA NU</button>
+    <button class="btn" onclick="location.reload()">ÖPPNA</button>
   </div>
 </div>
 
@@ -65,7 +73,7 @@
         <label>Ref (cm):</label><input type="number" id="adm-ref">
         <label>Start:</label><input type="datetime-local" id="adm-start">
         <label>Slut:</label><input type="datetime-local" id="adm-end">
-        <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
+        <button class="btn" onclick="saveSettings()">Spara</button>
       </div>
       <div class="card">
         <h3>Klasser</h3>
@@ -82,7 +90,6 @@
       <div class="card">
         <h3>Deltagare</h3>
         <div id="admin-user-list"></div>
-        <button class="btn" style="background:black; margin-top:20px" onclick="resetEverything()">NOLLSTÄLL ALLT</button>
       </div>
     </div>
   </div>
@@ -112,7 +119,7 @@
   async function loadClasses() {
     const res = await fetch(`${API_URL}?action=getClasses`);
     const data = await res.json();
-    document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('') + '<option value="Allmän">Allmän</option>';
+    document.getElementById('reg-class').innerHTML = (data.classes || []).map(c => `<option value="${c}">${c}</option>`).join('') + '<option value="Allmän">Allmän</option>';
   }
 
   async function registerUser() {
@@ -143,7 +150,7 @@
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
-    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass || 'Allmän'} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
     const filterCont = document.getElementById('filter-container');
     if (currentTab === 'leaderboard') {
@@ -158,11 +165,11 @@
       d.problems.forEach(p => {
         const val = d.problemValues[p.id];
         const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:24px;">${localSends[p.id]}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:24px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
       const filtered = currentFilter === 'ALLA' ? d.leaderboard : d.leaderboard.filter(u => (u.userClass || "Allmän") === currentFilter);
-      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
+      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
     } else {
       d.problems.forEach(p => {
         const val = Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
@@ -170,10 +177,21 @@
       });
     }
     document.getElementById('list').innerHTML = html;
+    refreshTimer();
+  }
+
+  function refreshTimer() {
+    if (!cachedData || !cachedData.settings) return;
+    const end = new Date(cachedData.settings.endTime).getTime();
+    const now = Date.now();
+    const target = end - now;
+    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
+    const str = target > 0 ? `KVAR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "AVSLUTAD";
+    document.querySelectorAll('.timer-banner').forEach(el => el.innerText = str);
   }
 
   async function update(pId, delta) {
-    localSends[pId] = Math.max(0, localSends[pId] + delta);
+    localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
     if (!updateQueue[pId]) updateQueue[pId] = [];
     updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
     renderApp();
@@ -204,9 +222,9 @@
     document.getElementById('adm-ref').value = d.settings.refHeight;
     document.getElementById('adm-start').value = new Date(d.settings.start).toISOString().slice(0,16);
     document.getElementById('adm-end').value = new Date(d.settings.end).toISOString().slice(0,16);
-    document.getElementById('admin-class-list').innerHTML = d.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
+    document.getElementById('admin-class-list').innerHTML = (d.classes || []).map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
     document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} (${u.userClass})</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} (${u.userClass || 'Allmän'})</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
   }
 
   async function addProblem() {
@@ -244,13 +262,13 @@
     alert("Sparat!");
   }
 
-  function setTab(t) { currentTab = t; renderApp(); }
+  function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
   function setFilter(f) { currentFilter = f; renderApp(); }
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (token) loadData(true);
+    else if (token) { loadData(true); setInterval(refreshTimer, 1000); }
     else { loadClasses(); switchView('register'); }
   };
 </script>
