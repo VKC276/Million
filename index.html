@@ -5,43 +5,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
-    .view { display: none; max-width: 480px; margin: 0 auto; }
-    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .header-card { background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    :root { --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b; }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
+    .view { display: none; max-width: 500px; margin: 0 auto; }
+    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
+    .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
+    .timer-banner { background: var(--accent); color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
-    .tab-btn.active { background: #27ae60; }
-    .p-score { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; }
+    .tab-btn.active { background: var(--primary); }
+    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
-    .btn-s.plus { background: #27ae60; color: white; }
-    .market-val { color: #27ae60; font-weight: bold; font-family: monospace; }
-    
-    /* Scoreboard Specifikt */
-    #view-scoreboard { max-width: 1100px; }
-    .sb-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 800px) { .sb-container { grid-template-columns: 1fr; } }
-    .sb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; font-size: 16px; }
-    .sb-title { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
+    .btn-s.plus { background: var(--primary); color: white; }
+    .market-val { color: var(--primary); font-weight: bold; }
+    input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+    .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; }
+
+    /* Scoreboard & Admin Specifikt */
+    #view-scoreboard, #view-admin { max-width: 1000px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; }
+    .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Ansluter...
+  <strong>Västervik Climbing</strong><br>Ansluter till servern...
+</div>
+
+<div id="view-admin" class="view">
+  <div class="card" style="background:var(--danger); color:white; text-align:center;">
+    <h2 style="margin:0">Adminpanel</h2>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h3>Inställningar</h3>
+      <label>Pott per problem:</label><input type="number" id="adm-pot">
+      <label>Ref-längd (cm):</label><input type="number" id="adm-ref">
+      <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
+    </div>
+    <div class="card">
+      <h3>Nytt Problem</h3>
+      <input type="text" id="new-p-id" placeholder="ID (t.ex. 12)">
+      <input type="text" id="new-p-name" placeholder="Namn (t.ex. 'Taket')">
+      <button class="btn" onclick="addProblem()">Lägg till</button>
+    </div>
+  </div>
+  <div class="card" id="admin-user-list">Hämtar deltagare...</div>
 </div>
 
 <div id="view-scoreboard" class="view">
-    <div class="card" style="background:#2c3e50; color:white; text-align:center;">
-        <h2 style="margin:0">Scoreboard</h2>
-        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">Laddar status...</div>
-    </div>
-    <div class="sb-container">
-        <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
-        <div><h3 class="sb-title">Börsen (Marknadsvärde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
-    </div>
+  <div class="card header-card" style="justify-content: center; flex-direction: column;">
+    <h2 style="margin:0">Scoreboard</h2>
+    <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;"></div>
+  </div>
+  <div class="grid">
+    <div><h3 class="title-bar">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0"></div></div>
+    <div><h3 class="title-bar">Börsen (Värde nu)</h3><div class="card" id="sb-market" style="padding:0"></div></div>
+  </div>
 </div>
 
 <div id="view-app" class="view">
@@ -60,7 +84,7 @@
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
-  
+  let adminPwd = "";
   let cachedData = null, isProcessing = false, currentTab = 'scorecard';
 
   function switchView(id) {
@@ -68,118 +92,119 @@
     document.getElementById('view-' + id).style.display = 'block';
   }
 
-  // --- DIN FUNGERANDE BERÄKNINGSLOGIK ---
+  // --- MATEMATIK ---
   function getProblemScore(pId) {
     const d = cachedData;
-    const myCount = (d.userSends && d.userSends[pId]) || 0;
+    const myCount = d.userSends?.[pId] || 0;
     if (myCount === 0) return 0;
     const pVal = d.problemValues[pId];
-    const pot = d.settings?.totalPot || 1000000;
     if (pVal && pVal.totalShares > 0) {
       const myWeighted = myCount * d.currentUser.factor;
-      return (myWeighted / pVal.totalShares) * pot;
+      return (myWeighted / pVal.totalShares) * d.settings.totalPot;
     }
-    return pot;
+    return d.settings.totalPot;
   }
 
   function getMarketValue(pId) {
     const d = cachedData;
-    const pot = d?.settings?.totalPot || 1000000;
-    const totalShares = d?.problemValues[pId]?.totalShares || 0;
-    return pot / (totalShares + 1.0);
+    const totalShares = d.problemValues[pId]?.totalShares || 0;
+    return d.settings.totalPot / (totalShares + 1.0);
   }
 
-  // --- DATAHÄMTNING ---
-  async function loadData(showLoading) {
-    if (isProcessing) return;
-    if (showLoading) switchView('loading');
+  // --- ADMIN ---
+  async function loadAdmin() {
+    if(!adminPwd) adminPwd = prompt("Lösenord:");
+    switchView('loading');
+    const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
+    const data = await res.json();
+    if(data.error) { alert("Fel!"); location.reload(); return; }
     
+    document.getElementById('adm-pot').value = data.settings.pot;
+    document.getElementById('adm-ref').value = data.settings.refHeight;
+    document.getElementById('admin-user-list').innerHTML = "<h3>Deltagare</h3>" + data.users.map(u => `<div class="row"><span>${u.name}</span><span>${u.length} cm</span></div>`).join('');
+    switchView('admin');
+  }
+
+  async function saveSettings() {
+    const pot = document.getElementById('adm-pot').value;
+    const ref = document.getElementById('adm-ref').value;
+    await fetch(`${API_URL}?action=updateSettings&pwd=${adminPwd}&pot=${pot}&refHeight=${ref}`);
+    alert("Sparat!");
+  }
+
+  async function addProblem() {
+    const id = document.getElementById('new-p-id').value;
+    const name = document.getElementById('new-p-name').value;
+    await fetch(`${API_URL}?action=addProblem&pwd=${adminPwd}&pId=${id}&name=${name}`);
+    alert("Tillagt!"); location.reload();
+  }
+
+  // --- CORE LOGIK ---
+  async function loadData(showLoading) {
+    if(isProcessing) return;
+    if(showLoading) switchView('loading');
     const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:token};
     try {
       const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
       cachedData = await res.json();
-      
-      if (action === 'scoreboard') {
-        renderScoreboard();
-        switchView('scoreboard');
-      } else {
-        renderApp();
-        switchView('app');
-      }
-    } catch (e) { console.error("Fel:", e); }
+      action === 'scoreboard' ? renderScoreboard() : renderApp();
+      switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
+    } catch (e) { console.error(e); }
   }
 
-  // --- RENDERING ---
   function renderScoreboard() {
     const d = cachedData;
     document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `
-      <div class="sb-row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>
-    `).join('') || '<div class="sb-row">Inga resultat än</div>';
-
-    document.getElementById('sb-market-full').innerHTML = d.problems.map(p => `
-      <div class="sb-row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>
+      <div class="row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>
     `).join('');
-    
-    if(d.settings && d.settings.endTime) updateTimers(d.settings.endTime);
+    document.getElementById('sb-market').innerHTML = d.problems.map(p => `
+      <div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</strong></div>
+    `).join('');
+    updateTimers(d.settings.endTime);
   }
 
   function renderApp() {
     const d = cachedData;
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
-    
     document.getElementById('header-box').innerHTML = `
       <div class="card header-card">
         <div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>TOTAL POÄNG</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
+        <div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
       </div>`;
 
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        const count = d.userSends[p.id] || 0;
-        html += `<div class="card">
-          <strong>#${p.id} ${p.name}</strong>
-          <div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div>
-          <div class="stepper">
-            <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
-            <b style="font-size:28px;">${count}</b>
-            <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
-          </div>
-        </div>`;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div>
+          <div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
       });
-    } else if (currentTab === 'market') {
-      d.problems.forEach(p => {
-        html += `<div class="card" style="display:flex; justify-content:space-between;">
-          <span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong>
-        </div>`;
+    } else if (currentTab === 'leaderboard') {
+      d.leaderboard.forEach((u,i) => {
+        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`;
       });
     } else {
-      d.leaderboard.forEach((u,i) => {
-        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60':''}">
-          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
-        </div>`;
+      d.problems.forEach(p => {
+        html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>`;
       });
     }
     document.getElementById('list').innerHTML = html;
-    if(d.settings && d.settings.endTime) updateTimers(d.settings.endTime);
+    updateTimers(d.settings.endTime);
   }
 
-  async function updateScore(pId, delta) {
-    if (isProcessing) return;
+  async function update(pId, delta) {
     isProcessing = true;
-    try {
-      const act = delta > 0 ? 'registerSend' : 'removeSend';
-      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-      cachedData = await res.json();
-      renderApp();
-    } catch (e) { alert("Kunde inte spara"); }
+    const act = delta > 0 ? 'registerSend' : 'removeSend';
+    const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+    cachedData = await res.json();
     isProcessing = false;
+    renderApp();
   }
 
   function updateTimers(endTime) {
     const remain = new Date(endTime).getTime() - Date.now();
     const txt = remain > 0 ? "Tid kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" : "Tävlingen avslutad";
     if(document.getElementById('sb-timer')) document.getElementById('sb-timer').innerText = txt;
+    if(document.getElementById('timer-display')) document.getElementById('timer-display').style.display = remain > 0 ? 'block' : 'none';
     if(document.getElementById('timer-display')) document.getElementById('timer-display').innerText = txt;
   }
 
@@ -191,11 +216,12 @@
   }
 
   window.onload = () => {
-    if (action === 'scoreboard' || token) {
+    if (action === 'admin') loadAdmin();
+    else if (action === 'scoreboard' || token) {
       loadData(true);
       setInterval(() => loadData(false), 30000);
     } else {
-      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk.";
+      document.getElementById('view-loading').innerHTML = "Personlig länk saknas.";
     }
   };
 </script>
