@@ -292,9 +292,13 @@
     document.getElementById('adm-end').value = toLocalISO(data.settings.end);
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
     document.getElementById('admin-class-list').innerHTML = data.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass(this, '${c}')">Radera</button></div>`).join('');
+    // Uppdaterad med e-post visning
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
       <div class="row">
-        <span style="flex:1;">${u.name} <small>(${u.userClass})</small></span>
+        <div style="flex:1; overflow:hidden;">
+          <strong>${u.name}</strong> <small>(${u.userClass})</small><br>
+          <small style="color:#888;">${u.email || 'Ingen e-post'}</small>
+        </div>
         <button class="btn-mini" style="margin-right:5px;" onclick="resetUser(this, '${u.id}')">Reset</button>
         <button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
       </div>`).join('');
