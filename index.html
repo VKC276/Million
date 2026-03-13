@@ -127,7 +127,6 @@
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
   let updateQueue = {}, localSends = {};
 
-  // Hjälpfunktion för att fixa tidszon i admin-boxar
   function toLocalISO(dateStr) {
     if(!dateStr) return "";
     const d = new Date(dateStr);
@@ -141,7 +140,6 @@
     if (target) target.style.display = 'block';
   }
 
-  // Dynamiska filter-chips
   function renderClassFilters() {
     if (!cachedData || !cachedData.leaderboard) return;
     const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
@@ -180,7 +178,6 @@
     return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
   }
 
-  // Hamra-vänlig update (Optimistisk)
   async function update(pId, delta) {
     if (!localSends[pId]) localSends[pId] = 0;
     localSends[pId] = Math.max(0, localSends[pId] + delta);
@@ -272,8 +269,6 @@
     btn.innerText = "Spara";
   }
 
-  // --- NYA/UPPDATERADE FUNKTIONER FÖR ADMIN ---
-  
   async function addProblem() {
     const btn = document.getElementById('btn-add-problem');
     const id = document.getElementById('new-p-id').value;
@@ -282,7 +277,8 @@
     
     btn.innerText = "Sparar...";
     try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&id=${id}&name=${name}`);
+      // Justerat: id -> pId för att matcha backend addProblem(e.parameter.pId, ...)
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`);
       renderAdmin(await res.json());
       document.getElementById('new-p-id').value = "";
       document.getElementById('new-p-name').value = "";
@@ -295,7 +291,8 @@
     const oldText = btn.innerText;
     btn.innerText = "Laddar...";
     try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&id=${pId}`);
+      // Justerat: id -> pId för att matcha backend deleteRowById(..., e.parameter.pId, ...)
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${encodeURIComponent(pId)}`);
       renderAdmin(await res.json());
     } catch (e) { btn.innerText = oldText; alert("Fel!"); }
   }
@@ -305,7 +302,8 @@
     const oldText = btn.innerText;
     btn.innerText = "Laddar...";
     try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&id=${userId}`);
+      // Justerat: id -> userId för att matcha backend resetUser(e.parameter.userId)
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`);
       renderAdmin(await res.json());
     } catch (e) { btn.innerText = oldText; alert("Fel!"); }
   }
@@ -315,7 +313,8 @@
     const btn = document.getElementById('btn-reset-all');
     btn.innerText = "Sparar...";
     try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetAll`);
+      // Justerat: resetAll -> resetEverything för att matcha backend
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`);
       renderAdmin(await res.json());
       alert("Allt är nollställt!");
     } catch (e) { alert("Fel!"); }
@@ -331,7 +330,8 @@
     
     btn.innerText = "Laddar...";
     try {
-      const res = await fetch(`${API_URL}?action=register&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&height=${height}`);
+      // Justerat: action=register -> requestLogin, height -> length för att matcha backend
+      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}`);
       const data = await res.json();
       if(data.token) {
         document.getElementById('reg-form-container').style.display = 'none';
@@ -341,8 +341,6 @@
     } catch (e) { alert("Kunde inte registrera. Försök igen."); }
     btn.innerText = "SKAPA PROFIL / SKICKA LÄNK";
   }
-
-  // --- SLUT PÅ ADMINFUNKTIONER ---
 
   function setTab(t) { 
     currentTab = t; 
