@@ -27,25 +27,31 @@
     .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
     @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
 
-    .market-val { color: var(--primary); font-weight: bold; margin-left: 10px; white-space: nowrap; }
+    .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 80px; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
     .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: all 0.2s; }
     .btn:disabled { opacity: 0.8; cursor: wait; }
     
-    /* Ökad bredd för Scoreboard */
-    #view-scoreboard { max-width: 1200px; }
+    #view-scoreboard { max-width: 1300px; }
     #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
     
-    .column-split { column-count: 1; column-gap: 30px; }
+    .column-split { column-count: 1; column-gap: 40px; }
     @media (min-width: 1100px) { .column-split { column-count: 2; } }
 
-    /* Förbättrad rad-layout för att hantera radbrytning snyggt */
-    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: flex-start; }
-    .row-label { display: flex; align-items: flex-start; flex: 1; }
-    .p-num { min-width: 35px; font-weight: bold; color: #666; }
-    .p-name { flex: 1; word-break: break-word; line-height: 1.2; }
+    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; overflow: hidden; }
+    .row-label { display: flex; align-items: center; flex: 1; min-width: 0; } /* min-width:0 krävs för truncation */
+    .p-num { min-width: 40px; font-weight: bold; color: #666; flex-shrink: 0; }
+    
+    /* Namnhantering: Klipp vid 30 tecken med ... */
+    .p-name { 
+      flex: 1; 
+      white-space: nowrap; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      max-width: 30ch; /* Begränsar bredden till ca 30 tecken */
+    }
     
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; }
   </style>
@@ -183,9 +189,16 @@
 
   function renderScoreboard() {
     const d = cachedData;
+    // Topplista
     document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA (TOP 25)</h3>' + 
-      d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`).join('');
+      d.leaderboard.slice(0, 25).map((u,i) => `
+        <div class="row">
+          <span class="p-num">${i+1}.</span>
+          <span class="p-name">${u.name}</span>
+          <strong class="market-val">${u.score.toLocaleString()} p</strong>
+        </div>`).join('');
     
+    // Börsen
     document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3>' + 
       '<div class="column-split" style="padding:10px;">' + 
       d.problems.map(p => `
