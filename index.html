@@ -18,6 +18,11 @@
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
     
+    .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0 15px 0; scrollbar-width: none; }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .filter-chip { background: #fff; border: 1px solid #ddd; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
+    .filter-chip.active { background: var(--dark); color: white; border-color: var(--dark); }
+
     .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
@@ -89,6 +94,12 @@
     <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
     <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
   </div>
+
+  <div id="class-filter-container" style="display:none;">
+    <div id="dynamic-filter-bar" class="filter-bar">
+      </div>
+  </div>
+
   <div id="list"></div>
 </div>
 
@@ -98,7 +109,7 @@
   const token = urlParams.get('token');
   const action = urlParams.get('action');
   
-  let adminPwd = "", cachedData = null, currentTab = 'scorecard';
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
   let updateQueue = {}, localSends = {}, isLocked = false;
 
   function switchView(id) {
@@ -107,13 +118,36 @@
     if (target) target.style.display = 'block';
   }
 
-  // --- UPPDATERAD TIMER LOGIK ---
+  // --- NYTT: Dynamiska filter-knappar baserat på faktiska klasser i datan ---
+  function renderClassFilters() {
+    if (!cachedData || !cachedData.leaderboard) return;
+    
+    // Hitta alla unika klasser (sorterade)
+    const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+    const bar = document.getElementById('dynamic-filter-bar');
+    
+    let html = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="filterByClass('Alla', this)">Alla</div>`;
+    
+    classes.forEach(c => {
+      html += `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="filterByClass('${c}', this)">${c}</div>`;
+    });
+    
+    bar.innerHTML = html;
+  }
+
+  function filterByClass(className, el) {
+    selectedClass = className;
+    document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
+    el.classList.add('active');
+    renderApp();
+  }
+
   function refreshTimer() {
     if (!cachedData || !cachedData.settings) return;
     const end = new Date(cachedData.settings.endTime).getTime();
     const now = Date.now();
     const diff = end - now;
-    const gracePeriod = 600000; // 10 minuter efterregistrering
+    const gracePeriod = 600000; 
     
     const el = document.getElementById('timer-display');
     const listEl = document.getElementById('list');
@@ -175,7 +209,6 @@
     }
   }
 
-  // --- UPPDATERAD RENDER FÖR VISUELL LÅSNING ---
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
@@ -189,26 +222,25 @@
         const val = d.problemValues[p.id];
         const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
         const syncing = updateQueue[p.id]?.length > 0;
-        html += `
-          <div class="card" style="${isLocked ? 'background: #fdfdfd;' : ''}">
-            <strong>#${p.id} ${p.name}</strong>
-            <div class="p-score">${syncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div>
-            <div class="stepper">
-              <button class="btn-s" onclick="update('${p.id}',-1)" ${(isLocked || syncing) ? 'disabled' : ''}>−</button>
-              <b style="font-size:28px; ${isLocked ? 'color: #999;' : ''}">${localSends[p.id] || 0}</b>
-              <button class="btn-s plus" onclick="update('${p.id}',1)" ${(isLocked || syncing) ? 'disabled' : ''}>+</button>
-            </div>
-          </div>`;
+        html += `<div class="card" style="${isLocked ? 'background: #fdfdfd;' : ''}"><strong>#${p.id} ${p.name}</strong><div class="p-score">${syncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)" ${(isLocked || syncing) ? 'disabled' : ''}>−</button><b style="font-size:28px; ${isLocked ? 'color: #999;' : ''}">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)" ${(isLocked || syncing) ? 'disabled' : ''}>+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
-      d.leaderboard.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
+      // Rita filter-chips när vi går in på topplistan
+      renderClassFilters();
+      const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
+      if (filtered.length === 0) {
+        html = `<div class="card" style="text-align:center; color:#999;">Inga deltagare i klassen ${selectedClass}</div>`;
+      } else {
+        filtered.forEach((u, i) => { 
+          html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; 
+        });
+      }
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
   }
 
-  // --- ADMIN LOGIK ---
   async function adminRequest(btn, params) {
     const originalText = btn.innerText;
     btn.disabled = true; btn.innerText = "Bearbetar...";
@@ -243,7 +275,13 @@
   async function resetUser(btn, uId) { if(confirm("Nollställ?")) await adminRequest(btn, { action: 'resetUser', userId: uId }); }
   function confirmResetAll() { if(confirm("RADERA ALLT?")) adminRequest(document.getElementById('btn-reset-all'), { action: 'resetAll' }); }
 
-  function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
+  function setTab(t) { 
+    currentTab = t; 
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); 
+    document.getElementById('btn-'+t).classList.add('active'); 
+    document.getElementById('class-filter-container').style.display = (t === 'leaderboard') ? 'block' : 'none';
+    renderApp(); 
+  }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
