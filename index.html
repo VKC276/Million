@@ -22,6 +22,7 @@
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
     .btn-s.plus { background: var(--primary); color: white; }
+    .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
     
     .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
     @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
@@ -29,15 +30,14 @@
     .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
     label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
     input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
-    .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
+    .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
     
-    #view-admin { max-width: 900px; }
+    #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
-    
     .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
-    
+
     .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
     .filter-btn { background: white; border: 1px solid #ccc; padding: 6px 12px; border-radius: 20px; font-size: 11px; white-space: nowrap; cursor: pointer; }
     .filter-btn.active { background: var(--dark); color: white; }
@@ -45,53 +45,26 @@
 </head>
 <body>
 
-<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">Ansluter...</div>
-
-<div id="view-register" class="view">
-  <div class="card" style="text-align:center; background:var(--dark); color:white;"><h2>Anmälan</h2></div>
-  <div class="card" id="reg-form-container">
-    <label>Namn:</label><input type="text" id="reg-name">
-    <label>E-post:</label><input type="email" id="reg-email">
-    <label>Längd (cm):</label><input type="number" id="reg-height" value="180">
-    <label>Klass:</label><select id="reg-class"><option value="Allmän">Hämtar...</option></select>
-    <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL</button>
-  </div>
-  <div id="reg-result" style="display:none;" class="card">
-    <p>Klart! Länk skickad.</p>
-    <input type="text" id="reg-token-link" readonly onclick="this.select()">
-    <button class="btn" onclick="location.reload()">ÖPPNA</button>
-  </div>
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
+  <strong>Västervik Climbing</strong><br>Ansluter...
 </div>
 
-<div id="view-admin" class="view">
-  <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
-  <div class="grid">
-    <div>
-      <div class="card">
-        <h3>Inställningar</h3>
-        <label>Pott:</label><input type="number" id="adm-pot">
-        <label>Ref (cm):</label><input type="number" id="adm-ref">
-        <label>Start:</label><input type="datetime-local" id="adm-start">
-        <label>Slut:</label><input type="datetime-local" id="adm-end">
-        <button class="btn" onclick="saveSettings()">Spara</button>
-      </div>
-      <div class="card">
-        <h3>Klasser</h3>
-        <div style="display:flex; gap:5px;"><input type="text" id="new-class-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addClass()">Add</button></div>
-        <div id="admin-class-list" style="margin-top:10px"></div>
-      </div>
-    </div>
-    <div>
-      <div class="card">
-        <h3>Problem</h3>
-        <div style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="new-p-id" placeholder="ID" style="width:50px; margin:0"><input type="text" id="new-p-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:60px; padding:0" onclick="addProblem()">OK</button></div>
-        <div id="admin-problem-list"></div>
-      </div>
-      <div class="card">
-        <h3>Deltagare</h3>
-        <div id="admin-user-list"></div>
-      </div>
-    </div>
+<div id="view-register" class="view">
+  <div class="card" style="text-align:center; background:var(--dark); color:white; border:none; margin-top:30px;">
+    <h2>Miljontävlingen</h2>
+    <p>Anmäl dig eller hämta din länk.</p>
+  </div>
+  <div class="card" id="reg-form-container">
+    <label>Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
+    <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
+    <label>Längd (cm):</label><input type="number" id="reg-height" value="180">
+    <label>Klass:</label><select id="reg-class"><option value="Allmän">Laddar klasser...</option></select>
+    <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
+  </div>
+  <div id="reg-result" style="display:none;" class="card">
+    <p style="color:var(--primary); font-weight:bold;">Klart! Länk skickad till e-post.</p>
+    <input type="text" id="reg-token-link" readonly onclick="this.select()">
+    <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD</button>
   </div>
 </div>
 
@@ -111,52 +84,87 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
-  const action = urlParams.get('action');
   
-  let adminPwd = "", cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
+  let cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
   let updateQueue = {}, localSends = {};
+  let isLocked = false;
 
   async function loadClasses() {
-    const res = await fetch(`${API_URL}?action=getClasses`);
-    const data = await res.json();
-    document.getElementById('reg-class').innerHTML = (data.classes || []).map(c => `<option value="${c}">${c}</option>`).join('') + '<option value="Allmän">Allmän</option>';
+    try {
+      const res = await fetch(`${API_URL}?action=getClasses`);
+      const data = await res.json();
+      document.getElementById('reg-class').innerHTML = (data.classes || []).map(c => `<option value="${c}">${c}</option>`).join('') + '<option value="Allmän">Allmän</option>';
+    } catch(e) { document.getElementById('reg-class').innerHTML = '<option value="Allmän">Allmän</option>'; }
   }
 
   async function registerUser() {
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value;
-    const height = document.getElementById('reg-height').value;
+    const name = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const height = document.getElementById('reg-height').value || 180;
     const uClass = document.getElementById('reg-class').value;
-    const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(uClass)}`);
-    const data = await res.json();
-    if(data.token) {
-      window.history.pushState({}, '', "?token=" + data.token);
-      document.getElementById('reg-token-link').value = window.location.href;
-      document.getElementById('reg-form-container').style.display = 'none';
-      document.getElementById('reg-result').style.display = 'block';
-    }
+    const btn = document.getElementById('btn-do-reg');
+    if(!name || !email) return alert("Fyll i namn och e-post!");
+    btn.disabled = true; btn.innerText = "Behandlar...";
+    try {
+      const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(uClass)}`);
+      const data = await res.json();
+      if(data.token) {
+        window.history.pushState({}, '', "?token=" + data.token);
+        document.getElementById('reg-token-link').value = window.location.href;
+        document.getElementById('reg-form-container').style.display = 'none';
+        document.getElementById('reg-result').style.display = 'block';
+      }
+    } catch (e) { alert("Fel!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
   }
 
   async function loadData(showLoading) {
     if(showLoading) switchView('loading');
-    const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
-    cachedData = await res.json();
-    renderApp();
-    switchView('app');
+    try {
+      const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+      cachedData = await res.json();
+      renderApp();
+      switchView('app');
+    } catch (e) { console.error(e); }
+  }
+
+  function refreshTimer() {
+    if (!cachedData || !cachedData.settings) return;
+    const end = new Date(cachedData.settings.endTime).getTime();
+    const now = Date.now();
+    const diff = end - now;
+    
+    // Lås knappar om det gått mer än 10 minuter (600,000 ms) efter slutid
+    isLocked = (now > (end + 600000));
+    
+    const h = Math.floor(Math.abs(diff)/3600000), m = Math.floor((Math.abs(diff)%3600000)/60000), s = Math.floor((Math.abs(diff)%60000)/1000);
+    const timeStr = `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    
+    const el = document.getElementById('timer-display');
+    if (diff > 0) {
+      el.innerText = "KVAR: " + timeStr;
+      el.style.background = "var(--timer-bg)";
+    } else if (diff <= 0 && !isLocked) {
+      el.innerText = "EFTERREGISTRERING: " + timeStr;
+      el.style.background = "var(--accent)";
+    } else {
+      el.innerText = "AVSLUTAD";
+      el.style.background = "var(--danger)";
+      if (currentTab === 'scorecard') renderApp(); // Rendera om för att inaktivera knappar
+    }
   }
 
   function renderApp() {
-    const d = cachedData;
+    const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
-    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass || 'Allmän'} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass || 'Allmän'} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
     const filterCont = document.getElementById('filter-container');
     if (currentTab === 'leaderboard') {
-      let uniqueClasses = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))];
+      let classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))];
       let fHtml = `<div class="filter-bar"><button class="filter-btn ${currentFilter==='ALLA'?'active':''}" onclick="setFilter('ALLA')">ALLA</button>`;
-      uniqueClasses.forEach(c => { fHtml += `<button class="filter-btn ${currentFilter===c?'active':''}" onclick="setFilter('${c}')">${c.toUpperCase()}</button>`; });
+      classes.forEach(c => { fHtml += `<button class="filter-btn ${currentFilter===c?'active':''}" onclick="setFilter('${c}')">${c.toUpperCase()}</button>`; });
       filterCont.innerHTML = fHtml + `</div>`;
     } else { filterCont.innerHTML = ''; }
 
@@ -165,32 +173,24 @@
       d.problems.forEach(p => {
         const val = d.problemValues[p.id];
         const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:24px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+        const isSyncing = updateQueue[p.id]?.length > 0;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${isSyncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper">
+          <button class="btn-s" onclick="update('${p.id}',-1)" ${isLocked || isSyncing ? 'disabled' : ''}>−</button>
+          <b style="font-size:28px;">${localSends[p.id] || 0}</b>
+          <button class="btn-s plus" onclick="update('${p.id}',1)" ${isLocked || isSyncing ? 'disabled' : ''}>+</button>
+        </div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
       const filtered = currentFilter === 'ALLA' ? d.leaderboard : d.leaderboard.filter(u => (u.userClass || "Allmän") === currentFilter);
-      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
+      filtered.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()} p</strong></div>`; });
     } else {
-      d.problems.forEach(p => {
-        const val = Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
-        html += `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${val.toLocaleString()} p</strong></div>`;
-      });
+      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
-    refreshTimer();
-  }
-
-  function refreshTimer() {
-    if (!cachedData || !cachedData.settings) return;
-    const end = new Date(cachedData.settings.endTime).getTime();
-    const now = Date.now();
-    const target = end - now;
-    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
-    const str = target > 0 ? `KVAR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "AVSLUTAD";
-    document.querySelectorAll('.timer-banner').forEach(el => el.innerText = str);
   }
 
   async function update(pId, delta) {
+    if(isLocked) return;
     localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
     if (!updateQueue[pId]) updateQueue[pId] = [];
     updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
@@ -199,67 +199,16 @@
   }
 
   async function processQueue(pId) {
-    if(updateQueue[pId].length > 1) return;
-    while(updateQueue[pId].length > 0) {
+    if (updateQueue[pId].length > 1) return;
+    while (updateQueue[pId].length > 0) {
       const act = updateQueue[pId][0];
-      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-      cachedData = await res.json();
-      updateQueue[pId].shift();
-      renderApp();
+      try {
+        const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+        cachedData = await res.json();
+        updateQueue[pId].shift();
+        renderApp();
+      } catch (e) { await new Promise(r => setTimeout(r, 2000)); }
     }
-  }
-
-  async function loadAdmin() {
-    if(!adminPwd) adminPwd = prompt("Lösenord:");
-    const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
-    const d = await res.json();
-    renderAdmin(d);
-    switchView('admin');
-  }
-
-  function renderAdmin(d) {
-    document.getElementById('adm-pot').value = d.settings.pot;
-    document.getElementById('adm-ref').value = d.settings.refHeight;
-    document.getElementById('adm-start').value = new Date(d.settings.start).toISOString().slice(0,16);
-    document.getElementById('adm-end').value = new Date(d.settings.end).toISOString().slice(0,16);
-    document.getElementById('admin-class-list').innerHTML = (d.classes || []).map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
-    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} (${u.userClass || 'Allmän'})</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
-  }
-
-  async function addProblem() {
-    const id = document.getElementById('new-p-id').value;
-    const name = document.getElementById('new-p-name').value;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${id}&name=${encodeURIComponent(name)}`);
-    renderAdmin(await res.json());
-  }
-
-  async function deleteProblem(id) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${id}`);
-    renderAdmin(await res.json());
-  }
-
-  async function resetUser(id) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${id}`);
-    renderAdmin(await res.json());
-  }
-
-  async function addClass() {
-    const name = document.getElementById('new-class-name').value;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(name)}`);
-    renderAdmin(await res.json());
-    document.getElementById('new-class-name').value = "";
-  }
-
-  async function deleteClass(name) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(name)}`);
-    renderAdmin(await res.json());
-  }
-
-  async function saveSettings() {
-    const p = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
-    await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`);
-    alert("Sparat!");
   }
 
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
@@ -267,9 +216,14 @@
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 
   window.onload = () => {
-    if (action === 'admin') loadAdmin();
-    else if (token) { loadData(true); setInterval(refreshTimer, 1000); }
-    else { loadClasses(); switchView('register'); }
+    if (token) {
+      loadData(true);
+      setInterval(refreshTimer, 1000);
+      setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
+    } else {
+      loadClasses();
+      switchView('register');
+    }
   };
 </script>
 </body>
