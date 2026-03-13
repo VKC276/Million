@@ -92,7 +92,6 @@
   let updateQueue = {}, localSends = {};
   let dataRefreshInterval = null;
 
-  // --- HJÄLPFUNKTIONER ---
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
     const el = document.getElementById('view-' + id);
@@ -126,8 +125,18 @@
     while (updateQueue[pId].length > 0) {
       const act = updateQueue[pId][0];
       try {
-        await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-        updateQueue[pId].shift();
+        const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+        const newData = await res.json();
+        
+        // Uppdatera den globala cachen med den nya datan från servern
+        cachedData = newData; 
+        
+        updateQueue[pId].shift(); // Ta bort utförd uppgift
+
+        // Om kön är tom, vänta lite innan rendering för att låta servern "vila"
+        if (updateQueue[pId].length === 0) {
+          await new Promise(r => setTimeout(r, 400));
+        }
         renderApp();
       } catch (e) {
         await new Promise(r => setTimeout(r, 2000));
@@ -137,6 +146,7 @@
 
   // --- DATAHÄMTNING ---
   async function loadData(showLoading) {
+    // Om vi har något i kö för NÅGOT problem, avvakta med refresh
     if (Object.values(updateQueue).some(q => q.length > 0)) return;
     
     if (cachedData && Date.now() > (new Date(cachedData.settings.endTime).getTime() + 3600000)) {
@@ -159,8 +169,12 @@
     const d = cachedData;
     if (!d || !d.currentUser) return;
     
+    // VIKTIGT: Synka bara från servern om vi INTE har pågående ändringar i kön för det specifika problemet
     d.problems.forEach(p => {
-      if (!updateQueue[p.id] || updateQueue[p.id].length === 0) localSends[p.id] = d.userSends[p.id] || 0;
+      const hasQueue = updateQueue[p.id] && updateQueue[p.id].length > 0;
+      if (!hasQueue) {
+        localSends[p.id] = d.userSends[p.id] || 0;
+      }
     });
 
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
@@ -172,10 +186,12 @@
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        const inSync = updateQueue[p.id] && updateQueue[p.id].length > 0;
+        const hasQueue = updateQueue[p.id] && updateQueue[p.id].length > 0;
+        const scoreDisplay = hasQueue ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p';
+
         html += `<div class="card">
           <strong>#${p.id} ${p.name}</strong>
-          <div class="p-score">${inSync ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p'}</div>
+          <div class="p-score">${scoreDisplay}</div>
           <div class="stepper">
             <button class="btn-s" onclick="update('${p.id}',-1)" ${isLocked ? 'disabled':''}>−</button>
             <b style="font-size:28px;">${localSends[p.id] || 0}</b>
