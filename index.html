@@ -1,289 +1,456 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen</title>
-  <style>
-    :root { 
-      --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
-      --timer-bg: #3498db;
-    }
-    body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
-    .view { display: none; max-width: 500px; margin: 0 auto; }
-    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
-    .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s; }
-    .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
-    .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
-    .tab-btn.active { background: var(--primary); }
-    
-    /* Dynamiska filter-chips */
-    .filter-bar { display: flex; gap: 8px; overflow-x: auto; padding: 5px 0 15px 0; scrollbar-width: none; }
-    .filter-bar::-webkit-scrollbar { display: none; }
-    .filter-chip { background: #fff; border: 1px solid #ddd; padding: 6px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
-    .filter-chip.active { background: var(--dark); color: white; border-color: var(--dark); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Miljontävlingen</title>
 
-    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
-    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
-    .btn-s.plus { background: var(--primary); color: white; }
-    .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
-    
-    .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
-    @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
+<style>
+:root{
+--primary:#27ae60;
+--dark:#2c3e50;
+--bg:#f0f2f1;
+--accent:#e67e22;
+--danger:#c0392b;
+--timer-bg:#3498db;
+}
 
-    .market-val { color: var(--primary); font-weight: bold; margin-left: 15px; white-space: nowrap; text-align: right; min-width: 60px; }
-    label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
-    input { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
-    .info-text { font-size: 12px; color: #777; line-height: 1.4; margin-bottom: 10px; }
-    .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
-    
-    #view-scoreboard { max-width: 95vw; }
-    .sb-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
-    @media (max-width: 1000px) { .sb-grid { grid-template-columns: 1fr; } }
-    .column-split { column-width: 350px; column-gap: 40px; column-rule: 1px solid #eee; }
-    .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; overflow: hidden; break-inside: avoid; }
-    .p-num { min-width: 35px; font-weight: bold; color: #666; }
-    .p-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    
-    #view-admin { max-width: 1000px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
-  </style>
+body{
+font-family:-apple-system,system-ui,sans-serif;
+margin:0;
+background:var(--bg);
+padding:10px;
+color:#333;
+}
+
+.view{
+display:none;
+max-width:500px;
+margin:0 auto;
+}
+
+.card{
+background:white;
+padding:18px;
+border-radius:12px;
+margin-bottom:12px;
+box-shadow:0 2px 6px rgba(0,0,0,0.08);
+position:relative;
+border:1px solid #eee;
+}
+
+.header-card{
+background:var(--dark);
+color:white;
+display:flex;
+justify-content:space-between;
+align-items:center;
+border:none;
+}
+
+.timer-banner{
+background:var(--timer-bg);
+color:white;
+text-align:center;
+padding:15px;
+font-weight:bold;
+border-radius:8px;
+margin-bottom:12px;
+font-size:16px;
+font-family:monospace;
+}
+
+.tab-nav{
+display:flex;
+border-radius:8px;
+overflow:hidden;
+margin-bottom:15px;
+background:#ddd;
+}
+
+.tab-btn{
+flex:1;
+padding:12px;
+border:none;
+background:#34495e;
+color:white;
+font-weight:bold;
+cursor:pointer;
+font-size:11px;
+}
+
+.tab-btn.active{
+background:var(--primary);
+}
+
+.p-score{
+position:absolute;
+top:18px;
+right:18px;
+color:var(--primary);
+font-weight:800;
+font-size:18px;
+}
+
+.stepper{
+display:flex;
+align-items:center;
+justify-content:space-between;
+margin-top:15px;
+background:#f9f9f9;
+padding:8px;
+border-radius:30px;
+}
+
+.btn-s{
+width:50px;
+height:50px;
+border-radius:50%;
+border:none;
+font-size:24px;
+font-weight:bold;
+cursor:pointer;
+background:#ddd;
+display:flex;
+align-items:center;
+justify-content:center;
+}
+
+.btn-s.plus{
+background:var(--primary);
+color:white;
+}
+
+.btn{
+background:var(--primary);
+color:white;
+border:none;
+padding:15px;
+border-radius:8px;
+width:100%;
+font-weight:bold;
+cursor:pointer;
+font-size:16px;
+}
+
+.btn:disabled{
+opacity:0.6;
+cursor:wait;
+}
+
+.btn-mini{
+padding:6px 10px;
+font-size:11px;
+border-radius:4px;
+border:1px solid #ddd;
+background:white;
+cursor:pointer;
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+padding:10px 12px;
+border-bottom:1px solid #eee;
+align-items:center;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:20px;
+}
+
+</style>
 </head>
+
 <body>
 
-<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Västervik Climbing</strong><br>Ansluter...
+<div id="view-loading" class="view" style="display:block;text-align:center;padding-top:100px;">
+<strong>Västervik Climbing</strong><br>Ansluter...
 </div>
 
-<div id="view-register" class="view">
-  <div class="card" style="text-align:center; background:var(--dark); color:white; border:none; margin-top:30px;">
-    <h2>Miljontävlingen</h2>
-    <p>Anmäl dig eller hämta din befintliga länk.</p>
-  </div>
-  <div class="card" id="reg-form-container">
-    <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
-    <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
-    <label>Din Längd (cm):</label><input type="number" id="reg-height" value="180">
-    <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
-  </div>
-  <div id="reg-result" style="display:none;" class="card">
-    <p style="color:var(--primary); font-weight:bold;">Klart! Länk skickad.</p>
-    <input type="text" id="reg-token-link" readonly onclick="this.select()">
-    <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD NU</button>
-  </div>
-</div>
 
 <div id="view-admin" class="view">
-  <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
-  <div class="card">
-    <h3>Inställningar</h3>
-    <div class="grid">
-      <div><label>Pott:</label><input type="number" id="adm-pot"></div>
-      <div><label>Ref (cm):</label><input type="number" id="adm-ref"></div>
-      <div><label>Start:</label><input type="datetime-local" id="adm-start"></div>
-      <div><label>Slut:</label><input type="datetime-local" id="adm-end"></div>
-    </div>
-    <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
-  </div>
-  <div class="grid">
-    <div class="card"><h3>Problem</h3><input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn"><button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button><div id="admin-problem-list" style="margin-top:10px"></div></div>
-    <div class="card"><h3>Deltagare</h3><div id="admin-user-list"></div><button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button></div>
-  </div>
+
+<div class="card" style="background:var(--danger);color:white;text-align:center;">
+<h2 style="margin:0">Adminpanel</h2>
 </div>
 
-<div id="view-scoreboard" class="view">
-  <div id="sb-timer-box" class="timer-banner"></div>
-  <div class="sb-grid">
-    <div><div class="card" id="sb-list" style="padding:0"></div></div>
-    <div><div class="card" id="sb-market" style="padding:0"></div></div>
-  </div>
+<div class="card">
+
+<h3>Inställningar</h3>
+
+<div class="grid">
+
+<div>
+<label>Pott</label>
+<input type="number" id="adm-pot">
 </div>
 
-<div id="view-app" class="view">
-  <div id="timer-display" class="timer-banner"></div>
-  <div id="header-box"></div>
-  <div class="tab-nav">
-    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">SCORECARD</button>
-    <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
-    <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
-  </div>
-
-  <div id="class-filter-container" style="display:none;">
-    <div id="dynamic-filter-bar" class="filter-bar"></div>
-  </div>
-
-  <div id="list"></div>
+<div>
+<label>Ref (cm)</label>
+<input type="number" id="adm-ref">
 </div>
+
+<div>
+<label>Start</label>
+<input type="datetime-local" id="adm-start">
+</div>
+
+<div>
+<label>Slut</label>
+<input type="datetime-local" id="adm-end">
+</div>
+
+</div>
+
+<button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
+
+</div>
+
+
+<div class="grid">
+
+<div class="card">
+
+<h3>Problem</h3>
+
+<input type="text" id="new-p-id" placeholder="ID">
+<input type="text" id="new-p-name" placeholder="Namn">
+
+<button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button>
+
+<div id="admin-problem-list" style="margin-top:10px"></div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Deltagare</h3>
+
+<div id="admin-user-list"></div>
+
+<button class="btn" style="background:black;margin-top:20px" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
+
+</div>
+
+</div>
+
+</div>
+
 
 <script>
-  const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
-  const urlParams = new URLSearchParams(window.location.search);
-  const token = urlParams.get('token');
-  const action = urlParams.get('action');
-  
-  let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
-  let updateQueue = {}, localSends = {};
 
-  // Hjälpfunktion för att fixa tidszon i admin-boxar
-  function toLocalISO(dateStr) {
-    if(!dateStr) return "";
-    const d = new Date(dateStr);
-    const offset = d.getTimezoneOffset() * 60000;
-    return new Date(d.getTime() - offset).toISOString().slice(0, 16);
-  }
+const API_URL="https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
 
-  function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    const target = document.getElementById('view-' + id);
-    if (target) target.style.display = 'block';
-  }
+let adminPwd="";
 
-  // Dynamiska filter-chips
-  function renderClassFilters() {
-    if (!cachedData || !cachedData.leaderboard) return;
-    const classes = [...new Set(cachedData.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-    const bar = document.getElementById('dynamic-filter-bar');
-    let html = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="filterByClass('Alla', this)">Alla</div>`;
-    classes.forEach(c => {
-      html += `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="filterByClass('${c}', this)">${c}</div>`;
-    });
-    bar.innerHTML = html;
-  }
 
-  function filterByClass(className, el) {
-    selectedClass = className;
-    document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('active'));
-    el.classList.add('active');
-    renderApp();
-  }
+/* ---------- BUTTON LOADING HELPERS ---------- */
 
-  async function loadData(showLoading) {
-    const activeToken = token || new URLSearchParams(window.location.search).get('token');
-    if(showLoading) switchView('loading');
-    const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:activeToken};
-    try {
-      const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
-      cachedData = await res.json();
-      action === 'scoreboard' ? renderScoreboard() : renderApp();
-      switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
-    } catch (e) { console.error(e); }
-  }
+function setBtnLoading(btn,text){
 
-  function getProblemScore(pId) {
-    if(!cachedData) return 0;
-    const myCount = localSends[pId] || 0;
-    const pVal = cachedData.problemValues[pId];
-    if (myCount === 0 || !pVal) return 0;
-    return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
-  }
+btn.dataset.original=btn.innerText
+btn.innerText=text
+btn.disabled=true
 
-  // Hamra-vänlig update (Optimistisk)
-  async function update(pId, delta) {
-    if (!localSends[pId]) localSends[pId] = 0;
-    localSends[pId] = Math.max(0, localSends[pId] + delta);
-    if (!updateQueue[pId]) updateQueue[pId] = [];
-    updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
-    renderApp();
-    if (updateQueue[pId].length === 1) processQueue(pId);
-  }
+}
 
-  async function processQueue(pId) {
-    const activeToken = token || new URLSearchParams(window.location.search).get('token');
-    while (updateQueue[pId].length > 0) {
-      const act = updateQueue[pId][0];
-      try {
-        const res = await fetch(`${API_URL}?token=${activeToken}&action=${act}&pId=${pId}`);
-        cachedData = await res.json();
-        updateQueue[pId].shift();
-        renderApp();
-      } catch (e) { await new Promise(r => setTimeout(r, 2000)); }
-    }
-  }
+function resetBtn(btn){
 
-  function renderApp() {
-    const d = cachedData; if (!d || !d.currentUser) return;
-    d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    
-    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
-    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
-    
-    let html = "";
-    if (currentTab === 'scorecard') {
-      d.problems.forEach(p => {
-        const score = updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p';
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${score}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
-      });
-    } else if (currentTab === 'leaderboard') {
-      renderClassFilters();
-      const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
-      filtered.forEach((u, i) => { 
-        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; 
-      });
-    } else {
-      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
-    }
-    document.getElementById('list').innerHTML = html; refreshTimer();
-  }
+btn.innerText=btn.dataset.original
+btn.disabled=false
 
-  function renderScoreboard() {
-    const d = cachedData;
-    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name}</span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
-    document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3><div class="column-split" style="padding:10px;">' + d.problems.map(p => `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong></div>`).join('') + '</div>';
-    refreshTimer();
-  }
+}
 
-  function refreshTimer() {
-    if (!cachedData) return;
-    const end = new Date(cachedData.settings.endTime).getTime(), now = Date.now(), target = end - now;
-    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
-    const str = target > 0 ? `KVAR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "AVSLUTAD";
-    document.querySelectorAll('.timer-banner').forEach(el => el.innerText = str);
-  }
 
-  async function loadAdmin() {
-    if(!adminPwd) adminPwd = prompt("Lösenord:");
-    switchView('loading');
-    try {
-      const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
-      renderAdmin(await res.json()); switchView('admin');
-    } catch (e) { alert("Fel!"); location.reload(); }
-  }
+/* ---------- ADMIN LOAD ---------- */
 
-  function renderAdmin(data) {
-    document.getElementById('adm-pot').value = data.settings.pot;
-    document.getElementById('adm-ref').value = data.settings.refHeight;
-    // Fixat: Använd toLocalISO för att tid ska synas i boxarna
-    document.getElementById('adm-start').value = toLocalISO(data.settings.start);
-    document.getElementById('adm-end').value = toLocalISO(data.settings.end);
-    document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row"><span>${u.name}</span><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button></div>`).join('');
-  }
+async function loadAdmin(){
 
-  async function saveSettings() { 
-    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
-    renderAdmin(await res.json()); alert("Sparat!");
-  }
+if(!adminPwd) adminPwd=prompt("Lösenord:")
 
-  function setTab(t) { 
-    currentTab = t; 
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); 
-    document.getElementById('btn-'+t).classList.add('active'); 
-    document.getElementById('class-filter-container').style.display = (t === 'leaderboard') ? 'block' : 'none';
-    renderApp(); 
-  }
+try{
 
-  window.onload = () => {
-    if (action === 'admin') loadAdmin();
-    else if (action === 'scoreboard' || token) { 
-      loadData(true); 
-      setInterval(refreshTimer, 1000);
-      setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
-    } else switchView('register');
-  };
+const res=await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`)
+
+renderAdmin(await res.json())
+
+document.getElementById("view-loading").style.display="none"
+document.getElementById("view-admin").style.display="block"
+
+}
+
+catch(e){
+
+alert("Fel!")
+
+}
+
+}
+
+
+/* ---------- RENDER ADMIN ---------- */
+
+function renderAdmin(data){
+
+document.getElementById("adm-pot").value=data.settings.pot
+document.getElementById("adm-ref").value=data.settings.refHeight
+document.getElementById("adm-start").value=data.settings.start
+document.getElementById("adm-end").value=data.settings.end
+
+document.getElementById("admin-problem-list").innerHTML=data.problems.map(p=>
+
+`<div class="row">
+
+<span>#${p.id} ${p.name}</span>
+
+<button class="btn-mini" onclick="deleteProblem(this,'${p.id}')">Radera</button>
+
+</div>`
+
+).join("")
+
+
+document.getElementById("admin-user-list").innerHTML=data.users.map(u=>
+
+`<div class="row">
+
+<span>${u.name}</span>
+
+<button class="btn-mini" onclick="resetUser(this,'${u.id}')">Reset</button>
+
+</div>`
+
+).join("")
+
+}
+
+
+/* ---------- SAVE SETTINGS ---------- */
+
+async function saveSettings(){
+
+const btn=document.getElementById("btn-save-settings")
+
+setBtnLoading(btn,"Sparar...")
+
+const params={
+
+action:'updateSettings',
+pot:document.getElementById('adm-pot').value,
+refHeight:document.getElementById('adm-ref').value,
+start:document.getElementById('adm-start').value,
+end:document.getElementById('adm-end').value
+
+}
+
+try{
+
+const res=await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`)
+
+renderAdmin(await res.json())
+
+}
+
+catch(e){
+
+alert("Fel vid sparning")
+
+}
+
+resetBtn(btn)
+
+}
+
+
+/* ---------- ADD PROBLEM ---------- */
+
+async function addProblem(){
+
+const btn=document.getElementById("btn-add-problem")
+
+setBtnLoading(btn,"Lägger till...")
+
+const id=document.getElementById("new-p-id").value
+const name=document.getElementById("new-p-name").value
+
+try{
+
+const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&id=${id}&name=${encodeURIComponent(name)}`)
+
+renderAdmin(await res.json())
+
+}
+
+catch(e){
+
+alert("Fel vid skapande")
+
+}
+
+resetBtn(btn)
+
+}
+
+
+/* ---------- DELETE PROBLEM ---------- */
+
+async function deleteProblem(btn,id){
+
+setBtnLoading(btn,"...")
+
+try{
+
+const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&id=${id}`)
+
+renderAdmin(await res.json())
+
+}
+
+catch(e){
+
+alert("Fel")
+
+}
+
+}
+
+
+/* ---------- RESET USER ---------- */
+
+async function resetUser(btn,id){
+
+setBtnLoading(btn,"...")
+
+try{
+
+const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&id=${id}`)
+
+renderAdmin(await res.json())
+
+}
+
+catch(e){
+
+alert("Fel")
+
+}
+
+}
+
+
+/* ---------- INIT ---------- */
+
+window.onload=()=>{
+
+loadAdmin()
+
+}
+
 </script>
+
 </body>
 </html>
