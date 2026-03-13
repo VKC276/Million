@@ -7,7 +7,7 @@
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
-    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; transition: opacity 0.2s; }
+    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
     .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: #27ae60; }
@@ -21,16 +21,17 @@
     .sb-title { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
     
     .market-val { color: #27ae60; font-weight: bold; font-family: monospace; font-size: 18px; }
-    .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
+    .stepper-container { margin-top: 15px; text-align: center; }
+    .prob-score-display { color: #27ae60; font-weight: 800; font-size: 20px; margin-bottom: 5px; display: block; }
+    .stepper { display: flex; align-items: center; justify-content: space-between; background: #f9f9f9; padding: 8px; border-radius: 30px; }
+    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
-    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Laddar data...
+  <strong>Miljontävlingen</strong><br>Uppdaterar poäng...
 </div>
 
 <div id="view-scoreboard" class="view">
@@ -40,7 +41,7 @@
     </div>
     <div class="sb-container">
         <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
-        <div><h3 class="sb-title">Börsen (Marknadsvärde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
+        <div><h3 class="sb-title">Börsen (HCP 1.0 värde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px; overflow:hidden;"></div></div>
     </div>
 </div>
 
@@ -63,7 +64,6 @@
   
   let cachedData = null;
   let isProcessing = false;
-  let isTabActive = true;
   let currentTab = 'scorecard';
   let requestQueue = [];
 
@@ -75,44 +75,44 @@
 
   function getSetting(key) {
     if (!cachedData || !cachedData.settings) return null;
-    return cachedData.settings[key] || cachedData.settings[key.toUpperCase()] || null;
+    let found = cachedData.settings[key] || cachedData.settings[key.toUpperCase()] || cachedData.settings[key.toLowerCase()];
+    return found;
   }
 
+  // MODELL: Räknar ut andelar baserat på antal sends och handicap
   function getShares(count, factor) {
     if (!count || count <= 0) return 0;
-    const base = count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1;
+    // 1.0 för första, +0.1 för varje därefter upp till 10 (max 2.0)
+    let base = count === 1 ? 1.0 : 1.0 + (Math.min(count, 10) - 1) * 0.1;
     return base * (factor || 1);
   }
 
-  function getCurrentUserScore(pId) {
-    if (!cachedData || !cachedData.currentUser) return 0;
-    const d = cachedData;
+  // MODELL: Räknar ut exakt vad din post är värd just nu
+  function calculateCurrentScore(pId) {
+    if (!cachedData) return 0;
     const pot = parseInt(getSetting('TOTAL_POT')) || 1000000;
-    const myCount = (d.userSends && d.userSends[pId]) || 0;
-    
+    const myCount = (cachedData.userSends && cachedData.userSends[pId]) || 0;
     if (myCount <= 0) return 0;
 
-    const pData = (d.problemValues && d.problemValues[pId]);
+    const pData = (cachedData.problemValues && cachedData.problemValues[pId]);
+    // Om vi inte har data om andra, men jag har klättrat, äger jag 100% (just nu)
     if (!pData || !pData.totalShares || pData.totalShares <= 0) return pot;
 
-    const myShares = getShares(myCount, d.currentUser.factor);
-    const score = (myShares / pData.totalShares) * pot;
-    
-    return isNaN(score) ? 0 : score;
+    const myShares = getShares(myCount, cachedData.currentUser.factor);
+    // Din andel av den totala potten
+    return (myShares / pData.totalShares) * pot;
   }
 
+  // MODELL: Marknadsvärde (vad nästa HCP 1.0 klättrare får)
   function getMarketValue(pId) {
     if (!cachedData) return 0;
-    const d = cachedData;
     const pot = parseInt(getSetting('TOTAL_POT')) || 1000000;
-    const pData = (d.problemValues && d.problemValues[pId]);
+    const pData = (cachedData.problemValues && cachedData.problemValues[pId]);
     
-    if (!pData || !pData.totalShares || pData.totalShares <= 0) return pot;
+    let totalSharesNow = (pData && pData.totalShares) ? pData.totalShares : 0;
+    let nextTotalShares = totalSharesNow + 1.0; 
     
-    const nextTotalShares = pData.totalShares + 1.0; 
-    const val = (1.0 / nextTotalShares) * pot;
-    
-    return isNaN(val) ? pot : val;
+    return (1.0 / nextTotalShares) * pot;
   }
 
   async function call(params) {
@@ -125,7 +125,7 @@
       cachedData = await call({ action: 'scoreboard' });
       renderScoreboard();
       switchView('scoreboard');
-    } catch(e) { console.error("SB Error:", e); }
+    } catch(e) { console.error(e); }
   }
 
   async function fetchData(load) {
@@ -135,24 +135,23 @@
       cachedData = await call({ action: 'getAppData', token: token });
       render();
       switchView('app');
-    } catch(e) { console.error("App Data Error:", e); }
+    } catch(e) { console.error(e); }
   }
 
   function renderScoreboard() {
     const d = cachedData;
     if(!d) return;
     
-    document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,10).map((u,i) => `
+    document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,15).map((u,i) => `
       <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${Math.round(u.score || 0).toLocaleString()} p</span></div>
-    `).join('') || '<div class="sb-row">Väntar på resultat...</div>';
+    `).join('');
 
-    const sorted = [...(d.problems || [])].map(p => {
-      return {...p, val: Math.round(getMarketValue(p.id))};
-    }).sort((a,b) => b.val - a.val);
+    const sorted = [...(d.problems || [])].map(p => ({...p, val: getMarketValue(p.id)}))
+      .sort((a,b) => b.val - a.val);
 
-    document.getElementById('sb-market-full').innerHTML = sorted.slice(0,10).map(p => `
-      <div class="market-row"><span>#${p.id} ${p.name}</span><span class="market-val">${p.val.toLocaleString()}</span></div>
-    `).join('') || '<div class="market-row">Inga problem hittades</div>';
+    document.getElementById('sb-market-full').innerHTML = sorted.slice(0,15).map(p => `
+      <div class="market-row"><span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(p.val).toLocaleString()}</span></div>
+    `).join('');
     updateTimers();
   }
 
@@ -167,54 +166,55 @@
     document.getElementById('header-box').innerHTML = `
       <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
         <div><small>HCP: ${(d.currentUser.factor || 1).toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>DIN TOTAL</small><br><strong style="color:#2ecc71; font-size:20px;">${Math.round(userScoreTotal).toLocaleString()}</strong></div>
+        <div style="text-align:right;"><small>DIN TOTAL</small><br><strong id="total-val" style="color:#2ecc71; font-size:20px;">${Math.round(userScoreTotal).toLocaleString()}</strong></div>
       </div>`;
 
     if(currentTab === 'scorecard') {
       (d.problems || []).forEach(p => {
         const myCount = (d.userSends && d.userSends[p.id]) || 0;
-        const myProbScore = getCurrentUserScore(p.id);
+        const myScore = calculateCurrentScore(p.id);
 
         list.innerHTML += `
           <div class="card" id="card-${p.id}">
-            <div class="p-val" id="pts-${p.id}">${Math.round(myProbScore).toLocaleString()} p</div>
-            <strong>#${p.id} ${p.name}</strong>
-            <div class="stepper">
-              <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
-              <b style="font-size:24px;" id="count-${p.id}">${myCount}</b>
-              <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
+            <strong style="font-size:18px;">#${p.id} ${p.name}</strong>
+            <div class="stepper-container">
+                <span class="prob-score-display" id="pts-${p.id}">${Math.round(myScore).toLocaleString()} p</span>
+                <div class="stepper">
+                  <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
+                  <b style="font-size:28px;" id="count-${p.id}">${myCount}</b>
+                  <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
+                </div>
             </div>
           </div>`;
       });
     } else if (currentTab === 'market') {
       [...(d.problems || [])].map(p => ({...p, mVal: getMarketValue(p.id)}))
       .sort((a,b) => b.mVal - a.mVal).forEach(p => {
-        list.innerHTML += `
-          <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>#${p.id} ${p.name}</span>
-            <div style="text-align:right;"><span class="market-val">${Math.round(p.mVal).toLocaleString()}</span><br><small style="opacity:0.5">Nästa klättrare får</small></div>
-          </div>`;
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(p.mVal).toLocaleString()}</span></div>`;
       });
     } else {
       (d.leaderboard || []).forEach((u,i) => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}"><span>${i+1}. ${u.name}</span><strong>${Math.round(u.score || 0).toLocaleString()} p</strong></div>`;
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}">
+          <span>${i+1}. ${u.name}</span><strong>${Math.round(u.score || 0).toLocaleString()} p</strong></div>`;
       });
     }
     updateTimers();
   }
 
   async function updateScore(pId, delta) {
+    if(isProcessing) return;
     const countEl = document.getElementById(`count-${pId}`);
     const ptsEl = document.getElementById(`pts-${pId}`);
-    const cardEl = document.getElementById(`card-${pId}`);
     
-    let currentCount = parseInt(countEl.innerText) || 0;
-    let newCount = Math.max(0, currentCount + delta);
-    if(currentCount === newCount) return;
+    let oldCount = parseInt(countEl.innerText);
+    let newCount = Math.max(0, oldCount + delta);
+    if(oldCount === newCount) return;
 
+    // OPTIMISTISKT UI: Visa att vi jobbar
     countEl.innerText = newCount;
-    ptsEl.innerText = "...";
-    cardEl.style.opacity = "0.6";
+    ptsEl.innerText = "räknar...";
+    document.getElementById(`card-${pId}`).style.opacity = "0.5";
 
     requestQueue.push({ pId, action: delta > 0 ? 'registerSend' : 'removeSend' });
     processQueue();
@@ -227,9 +227,8 @@
     try {
       const res = await call({ action: task.action, token: token, pId: task.pId });
       cachedData = res;
-      render();
+      render(); // Här uppdateras totalpoängen och problempoängen med riktig data från servern
     } catch(e) {
-      console.error("Save error:", e);
       fetchData(false);
     } finally {
       isProcessing = false;
@@ -250,12 +249,9 @@
 
   window.onload = () => {
     if (action === 'scoreboard') { 
-      fetchScoreboard(); setInterval(() => isTabActive && fetchScoreboard(), 30000); 
+      fetchScoreboard(); setInterval(fetchScoreboard, 30000); 
     } else if (token) { 
-      fetchData(true); setInterval(() => isTabActive && !isProcessing && requestQueue.length === 0 && fetchData(false), 60000); 
-    } else { 
-      switchView('loading');
-      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk.";
+      fetchData(true); setInterval(() => !isProcessing && fetchData(false), 60000); 
     }
   };
 
@@ -264,7 +260,6 @@
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t)); 
     render(); 
   }
-  document.addEventListener("visibilitychange", () => isTabActive = !document.hidden);
 </script>
 </body>
 </html>
