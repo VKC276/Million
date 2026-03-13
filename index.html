@@ -27,7 +27,7 @@
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
     .btn-s.plus { background: var(--primary); color: white; }
-    .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
+    .btn-s:disabled { opacity: 0.2; cursor: not-allowed; pointer-events: none; }
     
     .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
     @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
@@ -121,7 +121,7 @@
   const token = urlParams.get('token');
   const action = urlParams.get('action');
   
-  let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla";
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla", isCompClosed = false;
   let updateQueue = {}, localSends = {};
 
   function toLocalISO(dateStr) {
@@ -192,6 +192,7 @@
   }
 
   async function update(pId, delta) {
+    if (isCompClosed) return; // Lås för uppdateringar
     if (!localSends[pId]) localSends[pId] = 0;
     localSends[pId] = Math.max(0, localSends[pId] + delta);
     if (!updateQueue[pId]) updateQueue[pId] = [];
@@ -216,16 +217,13 @@
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    
-    // FIX: Letar efter ID (token) istället för namn i leaderboarden för totalscoren
     const myTotal = d.leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
-    
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
         const score = updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p';
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${score}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${score}</div><div class="stepper"><button class="btn-s" ${isCompClosed?'disabled':''} onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" ${isCompClosed?'disabled':''} onclick="update('${p.id}',1)">+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
       renderClassFilters();
@@ -234,7 +232,8 @@
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
-    document.getElementById('list').innerHTML = html; refreshTimer();
+    document.getElementById('list').innerHTML = html; 
+    refreshTimer();
   }
 
   function renderScoreboard() {
@@ -246,10 +245,38 @@
 
   function refreshTimer() {
     if (!cachedData) return;
-    const end = new Date(cachedData.settings.endTime).getTime(), now = Date.now(), target = end - now;
-    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
-    const str = target > 0 ? `KVAR: ${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "AVSLUTAD";
-    document.querySelectorAll('.timer-banner').forEach(el => el.innerText = str);
+    const start = new Date(cachedData.settings.startTime).getTime();
+    const end = new Date(cachedData.settings.endTime).getTime();
+    const now = Date.now();
+    
+    let label = "", targetTime = 0, bgColor = "var(--timer-bg)";
+    isCompClosed = false;
+
+    if (now < start) {
+      label = "Tid till start: ";
+      targetTime = start - now;
+    } else if (now < end) {
+      label = "Tävling pågår: ";
+      targetTime = end - now;
+      bgColor = "var(--primary)";
+    } else if (now < end + 600000) { // 10 minuter efterregistrering
+      label = "Efterregistrering: ";
+      targetTime = (end + 600000) - now;
+      bgColor = "var(--accent)";
+    } else {
+      label = "Tävling avslutad!";
+      targetTime = 0;
+      bgColor = "var(--danger)";
+      isCompClosed = true;
+    }
+
+    const h = Math.floor(targetTime/3600000), m = Math.floor((targetTime%3600000)/60000), s = Math.floor((targetTime%60000)/1000);
+    const timeStr = targetTime > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "";
+    
+    document.querySelectorAll('.timer-banner').forEach(el => {
+      el.innerText = label + timeStr;
+      el.style.background = bgColor;
+    });
   }
 
   async function loadAdmin() {
