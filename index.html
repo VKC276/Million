@@ -24,8 +24,6 @@
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
     .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
-    .admin-nav { display: flex; gap: 5px; margin-bottom: 15px; }
-    .admin-nav button { flex: 1; padding: 10px; border: none; border-radius: 6px; background: #34495e; color: white; font-size: 10px; }
   </style>
 </head>
 <body>
@@ -56,58 +54,35 @@
   <div id="list"></div>
 </div>
 
-<div id="view-admin" class="view">
-  <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
-    <strong>ADMIN</strong><div id="admin-status">✓</div>
-  </div>
-  <div class="admin-nav">
-    <button onclick="setAdminTab('settings')">INST.</button>
-    <button onclick="setAdminTab('problems')">PROBLEM</button>
-    <button onclick="setAdminTab('users')">ANVÄNDARE</button>
-  </div>
-  <div id="tab-settings" class="admin-tab">
-    <div class="card">
-        <label>Ref-höjd</label><input type="number" id="adm-ref" style="width:100%; padding:8px;">
-        <label>Pott per problem</label><input type="number" id="adm-pot" style="width:100%; padding:8px;">
-        <label>Slut</label><input type="datetime-local" id="adm-end" style="width:100%; padding:8px;">
-        <button class="btn" onclick="saveSettings()" style="margin-top:10px;">Spara</button>
-    </div>
-  </div>
-  <div id="tab-problems" class="admin-tab" style="display:none">
-    <div class="card"><input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn"><button class="btn" onclick="addProblem()">Lägg till</button></div>
-    <div class="card"><table id="table-problems" style="width:100%"><tbody></tbody></table></div>
-  </div>
-  <div id="tab-users" class="admin-tab" style="display:none">
-    <div class="card"><table id="table-users" style="width:100%"><tbody></tbody></table></div>
-  </div>
-</div>
-
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
   
-  let cachedData = null, adminData = null, isProcessing = false, isTabActive = true, currentTab = 'scorecard';
+  let cachedData = null, isProcessing = false, isTabActive = true, currentTab = 'scorecard';
 
-  // FIX: Se till att vi inte fastnar i laddningsläge
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
     const el = document.getElementById('view-' + id);
     if(el) el.style.display = 'block';
   }
 
+  // Hjälpfunktion för att säkert hämta potten
+  function getPot(d) {
+    if (!d || !d.settings) return 1000000;
+    return d.settings.TOTAL_POT || d.settings.pot || 1000000;
+  }
+
   async function call(params) {
-    const url = `${API_URL}?${new URLSearchParams(params)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Network fail');
+    const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
+    if (!res.ok) throw new Error('API Fail');
     return res.json();
   }
 
   async function fetchScoreboard() {
     try {
-      const d = await call({ action: 'scoreboard' });
-      cachedData = d;
+      cachedData = await call({ action: 'scoreboard' });
       renderScoreboard();
       switchView('scoreboard');
     } catch(e) { console.error("Scoreboard error:", e); }
@@ -117,8 +92,7 @@
     if(!token) return;
     if(load) switchView('loading');
     try {
-      const d = await call({ action: 'getAppData', token: token });
-      cachedData = d;
+      cachedData = await call({ action: 'getAppData', token: token });
       render();
       switchView('app');
     } catch(e) { console.error("Data error:", e); }
@@ -127,56 +101,63 @@
   function renderScoreboard() {
     const d = cachedData;
     if(!d) return;
-    const pot = d.settings.pot || 1000000;
+    const pot = getPot(d);
     
-    document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `
-      <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${u.score.toLocaleString()} p</span></div>
-    `).join('') || '<div class="sb-row">Inga resultat</div>';
+    document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,10).map((u,i) => `
+      <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${(u.score || 0).toLocaleString()} p</span></div>
+    `).join('') || '<div class="sb-row">Inga resultat än</div>';
 
-    const sorted = [...d.problems].map(p => {
-      const v = (d.problemValues[p.id] && d.problemValues[p.id].totalShares > 0) ? d.problemValues[p.id].valuePerShare : pot;
+    const sorted = [...(d.problems || [])].map(p => {
+      const pData = d.problemValues ? d.problemValues[p.id] : null;
+      const v = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
       return {...p, val: Math.round(v)};
     }).sort((a,b) => b.val - a.val);
 
     document.getElementById('sb-market-full').innerHTML = sorted.slice(0,10).map(p => `
       <div class="market-row"><span>#${p.id} ${p.name}</span><span class="market-val">${p.val.toLocaleString()}</span></div>
     `).join('');
-    updateTimers(d.competitionTimes);
+    if(d.competitionTimes) updateTimers(d.competitionTimes);
   }
 
   function render() {
     const d = cachedData;
     if(!d || !d.currentUser) return;
-    const pot = d.settings.pot || 1000000;
+    const pot = getPot(d);
     const list = document.getElementById('list');
     list.innerHTML = "";
 
+    const userScore = (d.leaderboard || []).find(u => u.name === d.currentUser.name)?.score || 0;
+
     document.getElementById('header-box').innerHTML = `
       <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
-        <div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>POÄNG</small><br><strong style="color:#2ecc71; font-size:20px;">${(d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0).toLocaleString()}</strong></div>
+        <div><small>HCP: ${(d.currentUser.factor || 1).toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
+        <div style="text-align:right;"><small>POÄNG</small><br><strong style="color:#2ecc71; font-size:20px;">${userScore.toLocaleString()}</strong></div>
       </div>`;
 
     if(currentTab === 'scorecard') {
-      d.problems.forEach(p => {
-        const count = d.userSends[p.id] || 0;
-        const vps = (d.problemValues[p.id] && d.problemValues[p.id].totalShares > 0) ? d.problemValues[p.id].valuePerShare : pot;
-        const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1)) * d.currentUser.factor;
+      (d.problems || []).forEach(p => {
+        const count = (d.userSends && d.userSends[p.id]) || 0;
+        const pData = d.problemValues ? d.problemValues[p.id] : null;
+        const vps = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
+        const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1)) * (d.currentUser.factor || 1);
         const pts = Math.round(shares * vps);
         list.innerHTML += `<div class="card"><span class="p-val">${pts.toLocaleString()} p</span><strong>#${p.id} ${p.name}</strong>
           <div class="stepper"><button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button><b style="font-size:20px;">${count}</b><button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button></div></div>`;
       });
     } else if(currentTab === 'leaderboard') {
-      d.leaderboard.forEach((u,i) => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`;
+      (d.leaderboard || []).forEach((u,i) => {
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}"><span>${i+1}. ${u.name}</span><strong>${(u.score || 0).toLocaleString()} p</strong></div>`;
       });
-    } else {
-      [...d.problems].map(p => ({...p, val: Math.round((d.problemValues[p.id] && d.problemValues[p.id].totalShares > 0) ? d.problemValues[p.id].valuePerShare : pot)}))
-      .sort((a,b) => b.val - a.val).forEach(p => {
+    } else if(currentTab === 'market') {
+      [...(d.problems || [])].map(p => {
+        const pData = d.problemValues ? d.problemValues[p.id] : null;
+        const v = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
+        return {...p, val: Math.round(v)};
+      }).sort((a,b) => b.val - a.val).forEach(p => {
         list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${p.val.toLocaleString()}</strong></div>`;
       });
     }
-    updateTimers(d.competitionTimes);
+    if(d.competitionTimes) updateTimers(d.competitionTimes);
   }
 
   async function updateScore(pId, delta) {
@@ -184,7 +165,7 @@
     try {
       cachedData = await call({ action: delta > 0 ? 'registerSend' : 'removeSend', token: token, pId: pId });
       render();
-    } catch(e) { alert("Fel vid sparning"); }
+    } catch(e) { alert("Kunde inte spara"); }
     isProcessing = false;
   }
 
@@ -196,13 +177,23 @@
   }
 
   window.onload = () => {
-    if (action === 'scoreboard') { fetchScoreboard(); setInterval(() => isTabActive && fetchScoreboard(), 30000); }
-    else if (token) { fetchData(true); setInterval(() => isTabActive && !isProcessing && fetchData(false), 60000); }
-    else if (action === 'admin') { /* Admin logic simplified for brevity */ }
-    else { switchView('loading'); document.getElementById('view-loading').innerHTML = "Använd din länk."; }
+    if (action === 'scoreboard') { 
+      fetchScoreboard(); 
+      setInterval(() => isTabActive && fetchScoreboard(), 30000); 
+    } else if (token) { 
+      fetchData(true); 
+      setInterval(() => isTabActive && !isProcessing && fetchData(false), 60000); 
+    } else { 
+      switchView('loading'); 
+      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk."; 
+    }
   };
 
-  function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t)); render(); }
+  function setTab(t) { 
+    currentTab = t; 
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.id === 'btn-'+t)); 
+    render(); 
+  }
   document.addEventListener("visibilitychange", () => isTabActive = !document.hidden);
 </script>
 </body>
