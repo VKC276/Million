@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen - Admin</title>
+  <title>Miljontävlingen</title>
   <style>
     :root { 
       --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
@@ -17,24 +17,28 @@
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
+    
+    /* Scorecard UI */
     .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
-    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
+    .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; display: flex; align-items: center; justify-content: center; }
     .btn-s.plus { background: var(--primary); color: white; }
     .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
+    
+    /* Sync-animering */
+    .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
+    @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
+
     .market-val { color: var(--primary); font-weight: bold; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
     .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: all 0.2s; }
     .btn:disabled { opacity: 0.8; cursor: wait; }
+    
     #view-scoreboard, #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
-    .admin-btn-group { display: flex; gap: 5px; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; transition: all 0.2s; }
-    .btn-mini:disabled { opacity: 0.8; cursor: wait; }
-    .btn-mini.danger { color: var(--danger); border-color: var(--danger); }
-    .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
+    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -44,40 +48,28 @@
 </div>
 
 <div id="view-admin" class="view">
-  <div class="card" style="background:var(--danger); color:white; text-align:center;">
-    <h2 style="margin:0">Adminpanel</h2>
-  </div>
+  <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
   <div class="card">
-    <h3>Tävlingsinställningar</h3>
+    <h3>Inställningar</h3>
     <div class="grid">
-      <div><label>Pott per problem:</label><input type="number" id="adm-pot"></div>
-      <div><label>Ref-längd (cm):</label><input type="number" id="adm-ref"></div>
-      <div><label>Starttid:</label><input type="datetime-local" id="adm-start"></div>
-      <div><label>Sluttid:</label><input type="datetime-local" id="adm-end"></div>
+      <div><label>Pott:</label><input type="number" id="adm-pot"></div>
+      <div><label>Ref:</label><input type="number" id="adm-ref"></div>
+      <div><label>Start:</label><input type="datetime-local" id="adm-start"></div>
+      <div><label>Slut:</label><input type="datetime-local" id="adm-end"></div>
     </div>
-    <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara Inställningar</button>
+    <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
   </div>
   <div class="grid">
-    <div class="card">
-      <h3>Problem</h3>
-      <input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn">
-      <button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till problem</button>
-      <div id="admin-problem-list" style="margin-top:15px"></div>
-    </div>
-    <div class="card">
-      <h3>Deltagare</h3>
-      <div id="admin-user-list"></div>
-      <button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">⚠️ NOLLSTÄLL HELA TÄVLINGEN</button>
-    </div>
+    <div class="card"><h3>Problem</h3><input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn"><button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button><div id="admin-problem-list" style="margin-top:10px"></div></div>
+    <div class="card"><h3>Deltagare</h3><div id="admin-user-list"></div><button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button></div>
   </div>
 </div>
 
 <div id="view-scoreboard" class="view">
-  <div id="sb-timer-box" class="timer-banner" style="border-radius: 12px 12px 0 0; margin-bottom: 0;"></div>
-  <div class="card header-card" style="justify-content: center; border-radius: 0 0 12px 12px;"><h2 style="margin:0">Scoreboard</h2></div>
-  <div class="grid" style="margin-top: 20px;">
-    <div><h3 class="title-bar">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0"></div></div>
-    <div><h3 class="title-bar">Börsen (Värde nu)</h3><div class="card" id="sb-market" style="padding:0"></div></div>
+  <div id="sb-timer-box" class="timer-banner"></div>
+  <div class="grid">
+    <div><div class="card" id="sb-list"></div></div>
+    <div><div class="card" id="sb-market"></div></div>
   </div>
 </div>
 
@@ -97,120 +89,62 @@
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
-  let adminPwd = "", cachedData = null, isProcessing = false, currentTab = 'scorecard';
+  
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard';
+  let updateQueue = {}, localSends = {};
+  let dataRefreshInterval = null;
 
-  function switchView(id) {
-    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
-    const el = document.getElementById('view-' + id);
-    if(el) el.style.display = 'block';
+  // --- KÖ-LOGIK ---
+  function getProblemScore(pId) {
+    if(!cachedData) return 0;
+    const myCount = localSends[pId] || 0;
+    if (myCount === 0) return 0;
+    const pVal = cachedData.problemValues[pId];
+    if (pVal && pVal.totalShares > 0) {
+      return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
+    }
+    return cachedData.settings.totalPot;
   }
 
-  const sleep = ms => new Promise(res => setTimeout(res, ms));
+  async function update(pId, delta) {
+    const now = Date.now(), start = new Date(cachedData.settings.startTime).getTime(), grace = new Date(cachedData.settings.endTime).getTime() + 3600000;
+    if (now < start || now > grace) { alert("Tävlingen är stängd."); return; }
 
-  // --- OPTIMERAD ADMIN LOGIK (TYDLIG FEEDBACK) ---
-  async function adminAction(params, btn, loadingText) {
-    const originalText = btn ? btn.innerText : "";
-    const originalBg = btn ? btn.style.backgroundColor : "";
+    if (!localSends[pId]) localSends[pId] = 0;
+    localSends[pId] = Math.max(0, localSends[pId] + delta);
     
-    if(btn) { 
-      btn.innerText = loadingText || "Arbetar..."; 
-      btn.disabled = true; 
-    }
-    
-    try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
-      const data = await res.json();
-      
-      if (data.error) { 
-        alert("Fel: " + data.error); 
-        if(btn) btn.innerText = originalText;
-      } else { 
-        if(btn) {
-          btn.innerText = "Klart!";
-          btn.style.backgroundColor = "#27ae60";
-        }
-        renderAdmin(data);
-        await sleep(800); // Låt användaren se "Klart!"
-      }
-    } catch (e) { 
-      alert("Anslutningsfel"); 
-    } finally { 
-      if(btn) { 
-        btn.innerText = originalText; 
-        btn.style.backgroundColor = originalBg;
-        btn.disabled = false; 
+    if (!updateQueue[pId]) updateQueue[pId] = [];
+    updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
+
+    renderApp();
+    if (updateQueue[pId].length === 1) processQueue(pId);
+  }
+
+  async function processQueue(pId) {
+    while (updateQueue[pId].length > 0) {
+      const act = updateQueue[pId][0];
+      try {
+        await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+        updateQueue[pId].shift();
+        renderApp();
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
   }
 
-  async function loadAdmin() {
-    if(!adminPwd) adminPwd = prompt("Lösenord:");
-    switchView('loading');
-    try {
-      const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
-      const data = await res.json();
-      if(data.error) { alert("Fel lösenord!"); location.reload(); return; }
-      renderAdmin(data);
-      switchView('admin');
-    } catch (e) { alert("Kunde inte ladda admin"); }
-  }
-
-  function renderAdmin(data) {
-    if (document.activeElement.tagName !== 'INPUT') {
-      document.getElementById('adm-pot').value = data.settings.pot;
-      document.getElementById('adm-ref').value = data.settings.refHeight;
-      if(data.settings.start) document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
-      if(data.settings.end) document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
-    }
-    
-    document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `
-      <div class="row">
-        <span><strong>#${p.id}</strong> ${p.name}</span>
-        <button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button>
-      </div>
-    `).join('');
-    
-    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
-      <div class="row">
-        <span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
-        <div class="admin-btn-group">
-          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
-          <button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  async function saveSettings() {
-    const btn = document.getElementById('btn-save-settings');
-    await adminAction({
-      action: 'updateSettings',
-      pot: document.getElementById('adm-pot').value,
-      refHeight: document.getElementById('adm-ref').value,
-      start: document.getElementById('adm-start').value,
-      end: document.getElementById('adm-end').value
-    }, btn, "Sparar...");
-  }
-
-  async function addProblem() {
-    const btn = document.getElementById('btn-add-problem');
-    const idInp = document.getElementById('new-p-id'), nameInp = document.getElementById('new-p-name');
-    if(!idInp.value || !nameInp.value) return;
-    await adminAction({ action: 'addProblem', pId: idInp.value, name: nameInp.value }, btn, "Lägger till...");
-    idInp.value = ""; nameInp.value = "";
-  }
-
-  async function deleteProblem(btn, id) { if(confirm("Radera problem?")) await adminAction({ action: 'deleteProblem', pId: id }, btn, "Raderar..."); }
-  async function resetUser(btn, id) { if(confirm("Nollställ användare?")) await adminAction({ action: 'resetUser', userId: id }, btn, "Nollställer..."); }
-  async function deleteUser(btn, id) { if(confirm("Radera användare helt?")) await adminAction({ action: 'deleteUser', userId: id }, btn, "Tar bort..."); }
-  async function confirmResetAll() { 
-    const btn = document.getElementById('btn-reset-all');
-    if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, btn, "Nollställer allt..."); 
-  }
-
-  // --- CORE LOGIK (TÄVLANDE) ---
+  // --- DATAHÄMTNING ---
   async function loadData(showLoading) {
-    if(isProcessing) return;
+    // Om vi synkar, vänta med refresh
+    if (Object.values(updateQueue).some(q => q.length > 0)) return;
+    
+    // Om tävlingen är slut, stoppa loopen
+    if (cachedData && Date.now() > (new Date(cachedData.settings.endTime).getTime() + 3600000)) {
+        console.log("Tävling avslutad. Stoppar auto-refresh.");
+        clearInterval(dataRefreshInterval);
+        return;
+    }
+
     if(showLoading) switchView('loading');
     const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:token};
     try {
@@ -221,73 +155,110 @@
     } catch (e) { console.error(e); }
   }
 
-  function renderScoreboard() {
-    const d = cachedData;
-    document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `<div class="row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>`).join('');
-    document.getElementById('sb-market').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</strong></div>`).join('');
-    refreshTimer();
-  }
-
+  // --- RENDERING ---
   function renderApp() {
     const d = cachedData;
     if (!d || !d.currentUser) return;
-    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
-    const now = Date.now(), start = new Date(d.settings.startTime).getTime(), end = new Date(d.settings.endTime).getTime();
-    const graceEnd = end + 3600000;
-    const isLocked = now < start || now > graceEnd;
+    d.problems.forEach(p => {
+      if (!updateQueue[p.id] || updateQueue[p.id].length === 0) localSends[p.id] = d.userSends[p.id] || 0;
+    });
 
+    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
+    const now = Date.now(), start = new Date(d.settings.startTime).getTime(), grace = new Date(d.settings.endTime).getTime() + 3600000;
+    const isLocked = now < start || now > grace;
+
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        const disabled = isLocked ? 'disabled' : '';
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)" ${disabled}>−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)" ${disabled}>+</button></div></div>`;
+        const inSync = updateQueue[p.id] && updateQueue[p.id].length > 0;
+        html += `<div class="card">
+          <strong>#${p.id} ${p.name}</strong>
+          <div class="p-score">${inSync ? '<span class="sync-dots"></span>' : Math.round(getProblemScore(p.id)).toLocaleString() + ' p'}</div>
+          <div class="stepper">
+            <button class="btn-s" onclick="update('${p.id}',-1)" ${isLocked ? 'disabled':''}>−</button>
+            <b style="font-size:28px;">${localSends[p.id] || 0}</b>
+            <button class="btn-s plus" onclick="update('${p.id}',1)" ${isLocked ? 'disabled':''}>+</button>
+          </div>
+        </div>`;
       });
     } else if (currentTab === 'leaderboard') {
       d.leaderboard.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
     } else {
-      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>`; });
+      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(cachedData.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
     refreshTimer();
   }
 
-  async function update(pId, delta) {
-    const now = Date.now(), start = new Date(cachedData.settings.startTime).getTime(), grace = new Date(cachedData.settings.endTime).getTime() + 3600000;
-    if (now < start || now > grace) { alert("Tävlingen är stängd."); return; }
-
-    isProcessing = true;
-    const act = delta > 0 ? 'registerSend' : 'removeSend';
-    await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-    const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
-    cachedData = await res.json();
-    isProcessing = false;
-    renderApp();
+  function renderScoreboard() {
+    const d = cachedData;
+    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0">TOPPLISTA</h3>' + d.leaderboard.slice(0,10).map((u,i) => `<div class="row"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`).join('');
+    document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0">BÖRSEN</h3>' + d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong></div>`).join('');
+    refreshTimer();
   }
 
   function refreshTimer() {
-    if (!cachedData || !cachedData.settings) return;
+    if (!cachedData) return;
     const start = new Date(cachedData.settings.startTime).getTime(), end = new Date(cachedData.settings.endTime).getTime(), now = Date.now();
-    let target, label, color;
-    if (now < start) { target = start - now; label = "TID TILL START: "; color = "#3498db"; }
-    else if (now < end) { target = end - now; label = "TID KVAR: "; const mins = target/60000; color = mins>60 ? "#27ae60" : (mins>10 ? "#f1c40f" : "#e74c3c"); }
-    else { target = (end + 3600000) - now; label = "EFTERREGISTRERING: "; color = "#9b59b6"; if(target<0) { label="AVSLUTAD"; target=0; } }
+    let label, color, target;
+    if (now < start) { target = start - now; label = "STARTAR OM: "; color = "#3498db"; }
+    else if (now < end) { target = end - now; label = "KVAR: "; color = (target/60000) > 10 ? "#27ae60" : "#e74c3c"; }
+    else { target = (end + 3600000) - now; label = "EFTERREG: "; color = "#9b59b6"; if(target < 0) { label = "AVSLUTAD"; target = 0; } }
     const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
-    const str = label + (target > 0 ? `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "");
-    ['timer-display', 'sb-timer-box'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerText = str; el.style.backgroundColor = color; } });
-    
-    if (Math.abs(now - start) < 2000 || Math.abs(now - (end + 3600000)) < 2000) { if(token) renderApp(); }
+    const str = label + (target > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "");
+    document.querySelectorAll('.timer-banner').forEach(el => { el.innerText = str; el.style.background = color; });
   }
 
-  setInterval(refreshTimer, 1000);
+  // --- ADMIN (FÖRENKLAD) ---
+  async function adminAction(params, btn, loadingText) {
+    const originalText = btn.innerText;
+    btn.innerText = loadingText; btn.disabled = true;
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
+      const data = await res.json();
+      btn.innerText = "Klart!";
+      renderAdmin(data);
+      setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 800);
+    } catch (e) { alert("Fel vid sparning"); btn.innerText = originalText; btn.disabled = false; }
+  }
+
+  async function loadAdmin() {
+    if(!adminPwd) adminPwd = prompt("Lösenord:");
+    switchView('loading');
+    const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
+    const data = await res.json();
+    if(data.error) { alert("Fel!"); location.reload(); return; }
+    renderAdmin(data);
+    switchView('admin');
+  }
+
+  function renderAdmin(data) {
+    document.getElementById('adm-pot').value = data.settings.pot;
+    document.getElementById('adm-ref').value = data.settings.refHeight;
+    document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
+    document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
+    document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row"><span>${u.name}</span><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button></div>`).join('');
+  }
+
+  async function saveSettings() { adminAction({ action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value }, document.getElementById('btn-save-settings'), "Sparar..."); }
+  async function addProblem() { adminAction({ action: 'addProblem', pId: document.getElementById('new-p-id').value, name: document.getElementById('new-p-name').value }, document.getElementById('btn-add-problem'), "Lägger till..."); }
+
+  // --- START ---
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (action === 'scoreboard' || token) { loadData(true); setInterval(() => loadData(false), 30000); }
-    else { document.getElementById('view-loading').innerHTML = "Länk saknas."; }
+    else if (action === 'scoreboard' || token) { 
+        loadData(true); 
+        setInterval(refreshTimer, 1000);
+        dataRefreshInterval = setInterval(() => {
+            if (!document.hidden) loadData(false);
+        }, 60000);
+    }
   };
 </script>
 </body>
