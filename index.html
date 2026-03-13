@@ -35,6 +35,7 @@
     
     #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
 
@@ -68,6 +69,37 @@
   </div>
 </div>
 
+<div id="view-admin" class="view">
+  <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
+  <div class="grid">
+    <div class="card">
+      <h3>Inställningar</h3>
+      <label>Pott:</label><input type="number" id="adm-pot">
+      <label>Ref (cm):</label><input type="number" id="adm-ref">
+      <label>Start:</label><input type="datetime-local" id="adm-start">
+      <label>Slut:</label><input type="datetime-local" id="adm-end">
+      <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
+    </div>
+    <div class="card">
+      <h3>Hantera Klasser</h3>
+      <div style="display:flex; gap:5px;"><input type="text" id="new-class-name" placeholder="Klassnamn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addClass()">Lägg till</button></div>
+      <div id="admin-class-list" style="margin-top:10px"></div>
+    </div>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h3>Problem</h3>
+      <div style="display:flex; gap:5px;"><input type="text" id="new-p-id" placeholder="ID" style="width:60px; margin:0"><input type="text" id="new-p-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addProblem()">Lägg till</button></div>
+      <div id="admin-problem-list" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h3>Deltagare</h3>
+      <div id="admin-user-list"></div>
+      <button class="btn" style="background:black; margin-top:20px" onclick="if(confirm('Nollställ ALLA sändningar?')) resetAll()">NOLLSTÄLL ALLT</button>
+    </div>
+  </div>
+</div>
+
 <div id="view-app" class="view">
   <div id="timer-display" class="timer-banner"></div>
   <div id="header-box"></div>
@@ -84,11 +116,13 @@
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
+  const action = urlParams.get('action');
   
-  let cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
   let updateQueue = {}, localSends = {};
   let isLocked = false;
 
+  // --- REGISTRERING & KLASSER ---
   async function loadClasses() {
     try {
       const res = await fetch(`${API_URL}?action=getClasses`);
@@ -114,13 +148,15 @@
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
       }
-    } catch (e) { alert("Fel!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
+    } catch (e) { alert("Ett fel uppstod!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
   }
 
+  // --- DATA & RENDER ---
   async function loadData(showLoading) {
     if(showLoading) switchView('loading');
     try {
-      const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+      const activeToken = token || new URLSearchParams(window.location.search).get('token');
+      const res = await fetch(`${API_URL}?action=getAppData&token=${activeToken}`);
       cachedData = await res.json();
       renderApp();
       switchView('app');
@@ -132,25 +168,14 @@
     const end = new Date(cachedData.settings.endTime).getTime();
     const now = Date.now();
     const diff = end - now;
-    
-    // Lås knappar om det gått mer än 10 minuter (600,000 ms) efter slutid
-    isLocked = (now > (end + 600000));
+    isLocked = (now > (end + 600000)); // Lås efter 10 minuter
     
     const h = Math.floor(Math.abs(diff)/3600000), m = Math.floor((Math.abs(diff)%3600000)/60000), s = Math.floor((Math.abs(diff)%60000)/1000);
     const timeStr = `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-    
     const el = document.getElementById('timer-display');
-    if (diff > 0) {
-      el.innerText = "KVAR: " + timeStr;
-      el.style.background = "var(--timer-bg)";
-    } else if (diff <= 0 && !isLocked) {
-      el.innerText = "EFTERREGISTRERING: " + timeStr;
-      el.style.background = "var(--accent)";
-    } else {
-      el.innerText = "AVSLUTAD";
-      el.style.background = "var(--danger)";
-      if (currentTab === 'scorecard') renderApp(); // Rendera om för att inaktivera knappar
-    }
+    if (diff > 0) { el.innerText = "KVAR: " + timeStr; el.style.background = "var(--timer-bg)"; }
+    else if (!isLocked) { el.innerText = "EFTERREG: " + timeStr; el.style.background = "var(--accent)"; }
+    else { el.innerText = "AVSLUTAD"; el.style.background = "var(--danger)"; if(currentTab === 'scorecard') renderApp(); }
   }
 
   function renderApp() {
@@ -166,7 +191,7 @@
       let fHtml = `<div class="filter-bar"><button class="filter-btn ${currentFilter==='ALLA'?'active':''}" onclick="setFilter('ALLA')">ALLA</button>`;
       classes.forEach(c => { fHtml += `<button class="filter-btn ${currentFilter===c?'active':''}" onclick="setFilter('${c}')">${c.toUpperCase()}</button>`; });
       filterCont.innerHTML = fHtml + `</div>`;
-    } else { filterCont.innerHTML = ''; }
+    } else filterCont.innerHTML = '';
 
     let html = "";
     if (currentTab === 'scorecard') {
@@ -182,9 +207,9 @@
       });
     } else if (currentTab === 'leaderboard') {
       const filtered = currentFilter === 'ALLA' ? d.leaderboard : d.leaderboard.filter(u => (u.userClass || "Allmän") === currentFilter);
-      filtered.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()} p</strong></div>`; });
+      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
     } else {
-      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
+      d.problems.forEach(p => { html += `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
   }
@@ -200,10 +225,11 @@
 
   async function processQueue(pId) {
     if (updateQueue[pId].length > 1) return;
+    const activeToken = token || new URLSearchParams(window.location.search).get('token');
     while (updateQueue[pId].length > 0) {
       const act = updateQueue[pId][0];
       try {
-        const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+        const res = await fetch(`${API_URL}?token=${activeToken}&action=${act}&pId=${pId}`);
         cachedData = await res.json();
         updateQueue[pId].shift();
         renderApp();
@@ -211,19 +237,64 @@
     }
   }
 
+  // --- ADMIN FUNKTIONER ---
+  async function loadAdmin() {
+    if(!adminPwd) adminPwd = prompt("Lösenord:");
+    switchView('loading');
+    try {
+      const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
+      const data = await res.json();
+      renderAdmin(data);
+      switchView('admin');
+    } catch (e) { alert("Fel lösenord eller anslutning!"); location.reload(); }
+  }
+
+  function renderAdmin(d) {
+    document.getElementById('adm-pot').value = d.settings.pot;
+    document.getElementById('adm-ref').value = d.settings.refHeight;
+    document.getElementById('adm-start').value = new Date(d.settings.start).toISOString().slice(0,16);
+    document.getElementById('adm-end').value = new Date(d.settings.end).toISOString().slice(0,16);
+    document.getElementById('admin-class-list').innerHTML = (d.classes || []).map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
+    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button></div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} [${u.userClass || 'Allmän'}]</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
+  }
+
+  async function saveSettings() {
+    const p = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`);
+    renderAdmin(await res.json()); alert("Sparat!");
+  }
+
+  async function addProblem() {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${document.getElementById('new-p-id').value}&name=${encodeURIComponent(document.getElementById('new-p-name').value)}`);
+    renderAdmin(await res.json());
+  }
+  async function addClass() {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(document.getElementById('new-class-name').value)}`);
+    renderAdmin(await res.json()); document.getElementById('new-class-name').value = "";
+  }
+  async function deleteClass(name) {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(name)}`);
+    renderAdmin(await res.json());
+  }
+  async function deleteProblem(id) {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${id}`);
+    renderAdmin(await res.json());
+  }
+  async function resetUser(id) {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${id}`);
+    renderAdmin(await res.json());
+  }
+
+  // --- NAVIGATION ---
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
   function setFilter(f) { currentFilter = f; renderApp(); }
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 
   window.onload = () => {
-    if (token) {
-      loadData(true);
-      setInterval(refreshTimer, 1000);
-      setInterval(() => { if (!document.hidden) loadData(false); }, 60000);
-    } else {
-      loadClasses();
-      switchView('register');
-    }
+    if (action === 'admin') loadAdmin();
+    else if (token) { loadData(true); setInterval(refreshTimer, 1000); setInterval(() => { if (!document.hidden) loadData(false); }, 60000); }
+    else { loadClasses(); switchView('register'); }
   };
 </script>
 </body>
