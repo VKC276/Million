@@ -18,27 +18,45 @@
     .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
     
-    /* Layout fix för admin */
     #view-admin { max-width: 900px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
     
-    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; }
+    .p-score { position: absolute; top: 18px; right: 18px; color: var(--primary); font-weight: 800; font-size: 18px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 45px; height: 45px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
     input, select { width: 100%; padding: 12px; margin: 5px 0 10px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-    .filter-bar { display: flex; gap: 5px; margin-bottom: 10px; overflow-x: auto; }
-    .filter-btn { background: white; border: 1px solid #ccc; padding: 5px 10px; border-radius: 15px; font-size: 10px; cursor: pointer; white-space: nowrap; }
+    
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
+    .filter-btn { background: white; border: 1px solid #ccc; padding: 6px 12px; border-radius: 20px; font-size: 11px; white-space: nowrap; cursor: pointer; }
     .filter-btn.active { background: var(--dark); color: white; }
+    
+    .sync-dots:after { content: ' .'; animation: dots 1s steps(5, end) infinite; font-size: 24px; color: var(--accent); }
+    @keyframes dots { 0%, 20% { content: ' .'; } 40% { content: ' . .'; } 60% { content: ' . . .'; } 80%, 100% { content: ''; } }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">Ansluter...</div>
 
+<div id="view-register" class="view">
+  <div class="card" style="text-align:center; background:var(--dark); color:white;"><h2>Anmälan</h2></div>
+  <div class="card" id="reg-form-container">
+    <label>Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
+    <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
+    <label>Längd (cm):</label><input type="number" id="reg-height" value="180">
+    <label>Klass:</label><select id="reg-class"><option value="Allmän">Hämtar...</option></select>
+    <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL</button>
+  </div>
+  <div id="reg-result" style="display:none;" class="card">
+    <p>Länk skickad till din e-post!</p>
+    <input type="text" id="reg-token-link" readonly onclick="this.select()">
+    <button class="btn" onclick="location.reload()">ÖPPNA NU</button>
+  </div>
+</div>
+
 <div id="view-admin" class="view">
   <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
-  
   <div class="grid">
     <div>
       <div class="card">
@@ -47,37 +65,39 @@
         <label>Ref (cm):</label><input type="number" id="adm-ref">
         <label>Start:</label><input type="datetime-local" id="adm-start">
         <label>Slut:</label><input type="datetime-local" id="adm-end">
-        <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara Inställningar</button>
+        <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
       </div>
-
       <div class="card">
-        <h3>Tävlingsklasser</h3>
-        <div style="display:flex; gap:5px;">
-          <input type="text" id="new-class-name" placeholder="Ny klass..." style="margin:0">
-          <button class="btn" style="width:80px; padding:0" onclick="addClass()">Lägg till</button>
-        </div>
+        <h3>Klasser</h3>
+        <div style="display:flex; gap:5px;"><input type="text" id="new-class-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addClass()">Add</button></div>
         <div id="admin-class-list" style="margin-top:10px"></div>
       </div>
     </div>
-
     <div>
       <div class="card">
         <h3>Problem</h3>
-        <div style="display:flex; gap:5px; margin-bottom:10px;">
-          <input type="text" id="new-p-id" placeholder="ID" style="width:60px; margin:0">
-          <input type="text" id="new-p-name" placeholder="Namn" style="margin:0">
-          <button class="btn" style="width:70px; padding:0" onclick="addProblem()">OK</button>
-        </div>
+        <div style="display:flex; gap:5px; margin-bottom:10px;"><input type="text" id="new-p-id" placeholder="ID" style="width:50px; margin:0"><input type="text" id="new-p-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:60px; padding:0" onclick="addProblem()">OK</button></div>
         <div id="admin-problem-list"></div>
       </div>
-
       <div class="card">
         <h3>Deltagare</h3>
         <div id="admin-user-list"></div>
-        <button class="btn" style="background:black; margin-top:20px" onclick="if(confirm('Nollställ ALLT?')) resetEverything()">NOLLSTÄLL ALLT</button>
+        <button class="btn" style="background:black; margin-top:20px" onclick="resetEverything()">NOLLSTÄLL ALLT</button>
       </div>
     </div>
   </div>
+</div>
+
+<div id="view-app" class="view">
+  <div id="timer-display" class="timer-banner"></div>
+  <div id="header-box"></div>
+  <div class="tab-nav">
+    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">SCORECARD</button>
+    <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
+    <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
+  </div>
+  <div id="filter-container"></div>
+  <div id="list"></div>
 </div>
 
 <script>
@@ -85,7 +105,91 @@
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
-  let adminPwd = "", cachedData = null;
+  
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
+  let updateQueue = {}, localSends = {};
+
+  async function loadClasses() {
+    const res = await fetch(`${API_URL}?action=getClasses`);
+    const data = await res.json();
+    document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('') + '<option value="Allmän">Allmän</option>';
+  }
+
+  async function registerUser() {
+    const name = document.getElementById('reg-name').value;
+    const email = document.getElementById('reg-email').value;
+    const height = document.getElementById('reg-height').value;
+    const uClass = document.getElementById('reg-class').value;
+    const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(uClass)}`);
+    const data = await res.json();
+    if(data.token) {
+      window.history.pushState({}, '', "?token=" + data.token);
+      document.getElementById('reg-token-link').value = window.location.href;
+      document.getElementById('reg-form-container').style.display = 'none';
+      document.getElementById('reg-result').style.display = 'block';
+    }
+  }
+
+  async function loadData(showLoading) {
+    if(showLoading) switchView('loading');
+    const res = await fetch(`${API_URL}?action=getAppData&token=${token}`);
+    cachedData = await res.json();
+    renderApp();
+    switchView('app');
+  }
+
+  function renderApp() {
+    const d = cachedData;
+    d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
+    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
+    
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>POÄNG</small><br><strong style="font-size:20px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    
+    const filterCont = document.getElementById('filter-container');
+    if (currentTab === 'leaderboard') {
+      let uniqueClasses = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))];
+      let fHtml = `<div class="filter-bar"><button class="filter-btn ${currentFilter==='ALLA'?'active':''}" onclick="setFilter('ALLA')">ALLA</button>`;
+      uniqueClasses.forEach(c => { fHtml += `<button class="filter-btn ${currentFilter===c?'active':''}" onclick="setFilter('${c}')">${c.toUpperCase()}</button>`; });
+      filterCont.innerHTML = fHtml + `</div>`;
+    } else { filterCont.innerHTML = ''; }
+
+    let html = "";
+    if (currentTab === 'scorecard') {
+      d.problems.forEach(p => {
+        const val = d.problemValues[p.id];
+        const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${updateQueue[p.id]?.length ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:24px;">${localSends[p.id]}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+      });
+    } else if (currentTab === 'leaderboard') {
+      const filtered = currentFilter === 'ALLA' ? d.leaderboard : d.leaderboard.filter(u => (u.userClass || "Allmän") === currentFilter);
+      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
+    } else {
+      d.problems.forEach(p => {
+        const val = Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
+        html += `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${val.toLocaleString()} p</strong></div>`;
+      });
+    }
+    document.getElementById('list').innerHTML = html;
+  }
+
+  async function update(pId, delta) {
+    localSends[pId] = Math.max(0, localSends[pId] + delta);
+    if (!updateQueue[pId]) updateQueue[pId] = [];
+    updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
+    renderApp();
+    processQueue(pId);
+  }
+
+  async function processQueue(pId) {
+    if(updateQueue[pId].length > 1) return;
+    while(updateQueue[pId].length > 0) {
+      const act = updateQueue[pId][0];
+      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+      cachedData = await res.json();
+      updateQueue[pId].shift();
+      renderApp();
+    }
+  }
 
   async function loadAdmin() {
     if(!adminPwd) adminPwd = prompt("Lösenord:");
@@ -100,25 +204,9 @@
     document.getElementById('adm-ref').value = d.settings.refHeight;
     document.getElementById('adm-start').value = new Date(d.settings.start).toISOString().slice(0,16);
     document.getElementById('adm-end').value = new Date(d.settings.end).toISOString().slice(0,16);
-    
-    // Klasser
     document.getElementById('admin-class-list').innerHTML = d.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
-    
-    // Problem (FIXAD: Knappar tillbaka)
-    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `
-      <div class="row">
-        <span>#${p.id} ${p.name}</span>
-        <button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button>
-      </div>
-    `).join('');
-    
-    // Deltagare (FIXAD: Knappar tillbaka)
-    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `
-      <div class="row">
-        <span style="font-size:11px">${u.name} (${u.userClass})</span>
-        <button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button>
-      </div>
-    `).join('');
+    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button></div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} (${u.userClass})</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
   }
 
   async function addProblem() {
@@ -129,13 +217,11 @@
   }
 
   async function deleteProblem(id) {
-    if(!confirm("Radera problem?")) return;
     const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${id}`);
     renderAdmin(await res.json());
   }
 
   async function resetUser(id) {
-    if(!confirm("Nollställ användarens bestigningar?")) return;
     const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${id}`);
     renderAdmin(await res.json());
   }
@@ -153,23 +239,19 @@
   }
 
   async function saveSettings() {
-    const p = {
-      action: 'updateSettings',
-      pot: document.getElementById('adm-pot').value,
-      refHeight: document.getElementById('adm-ref').value,
-      start: document.getElementById('adm-start').value,
-      end: document.getElementById('adm-end').value
-    };
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`);
-    renderAdmin(await res.json());
+    const p = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
+    await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`);
     alert("Sparat!");
   }
 
+  function setTab(t) { currentTab = t; renderApp(); }
+  function setFilter(f) { currentFilter = f; renderApp(); }
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    // ... resten av din window.onload logik ...
+    else if (token) loadData(true);
+    else { loadClasses(); switchView('register'); }
   };
 </script>
 </body>
