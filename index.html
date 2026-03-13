@@ -137,12 +137,9 @@
     if (target) target.style.display = 'block';
   }
 
-  // NY: Navigerar till den skapade token-länken
   function openMyScorecard() {
     const link = document.getElementById('reg-token-link').value;
-    if (link) {
-      window.location.href = link;
-    }
+    if (link) { window.location.href = link; }
   }
 
   async function loadClassesForRegistration() {
@@ -219,7 +216,10 @@
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
+    
+    // FIX: Letar efter ID (token) istället för namn i leaderboarden för totalscoren
+    const myTotal = d.leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
+    
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     let html = "";
     if (currentTab === 'scorecard') {
@@ -230,7 +230,7 @@
     } else if (currentTab === 'leaderboard') {
       renderClassFilters();
       const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
-      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
+      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id === d.currentUser.id ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
@@ -342,7 +342,6 @@
       if(data.token) {
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
-        // Sparar ner länken i inputfältet så att openMyScorecard kan hitta den
         document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + data.token;
       }
     } catch (e) { btn.innerText = "Fel! Försök igen"; }
