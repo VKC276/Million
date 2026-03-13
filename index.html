@@ -31,17 +31,11 @@
     label { display: block; margin-top: 10px; font-size: 13px; font-weight: bold; color: #666; }
     input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; }
     .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 16px; }
-    .btn:disabled { background: #ccc; cursor: not-allowed; }
     
     #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; }
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
-
-    .filter-bar { display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
-    .filter-btn { background: white; border: 1px solid #ccc; padding: 6px 12px; border-radius: 20px; font-size: 11px; white-space: nowrap; cursor: pointer; }
-    .filter-btn.active { background: var(--dark); color: white; }
   </style>
 </head>
 <body>
@@ -56,46 +50,43 @@
     <p>Anmäl dig eller hämta din länk.</p>
   </div>
   <div class="card" id="reg-form-container">
-    <label>Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
+    <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
     <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
-    <label>Längd (cm):</label><input type="number" id="reg-height" value="180">
-    <label>Klass:</label><select id="reg-class"><option value="Allmän">Laddar klasser...</option></select>
+    <label>Din Längd (cm):</label><input type="number" id="reg-height" value="180">
+    <label>Klass:</label><select id="reg-class"><option value="Allmän">Hämtar...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
-    <p style="color:var(--primary); font-weight:bold;">Klart! Länk skickad till e-post.</p>
+    <p style="color:var(--primary); font-weight:bold;">Klart! Vi har skickat din länk.</p>
     <input type="text" id="reg-token-link" readonly onclick="this.select()">
-    <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD</button>
+    <button class="btn" onclick="location.reload()">ÖPPNA SCORECARD NU</button>
   </div>
 </div>
 
 <div id="view-admin" class="view">
   <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
-  <div class="grid">
-    <div class="card">
-      <h3>Inställningar</h3>
-      <label>Pott:</label><input type="number" id="adm-pot">
-      <label>Ref (cm):</label><input type="number" id="adm-ref">
-      <label>Start:</label><input type="datetime-local" id="adm-start">
-      <label>Slut:</label><input type="datetime-local" id="adm-end">
-      <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
+  <div class="card">
+    <h3>Inställningar</h3>
+    <div class="grid">
+      <div><label>Pott:</label><input type="number" id="adm-pot"></div>
+      <div><label>Ref (cm):</label><input type="number" id="adm-ref"></div>
+      <div><label>Start:</label><input type="datetime-local" id="adm-start"></div>
+      <div><label>Slut:</label><input type="datetime-local" id="adm-end"></div>
     </div>
-    <div class="card">
-      <h3>Hantera Klasser</h3>
-      <div style="display:flex; gap:5px;"><input type="text" id="new-class-name" placeholder="Klassnamn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addClass()">Lägg till</button></div>
-      <div id="admin-class-list" style="margin-top:10px"></div>
-    </div>
+    <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
   </div>
   <div class="grid">
     <div class="card">
       <h3>Problem</h3>
-      <div style="display:flex; gap:5px;"><input type="text" id="new-p-id" placeholder="ID" style="width:60px; margin:0"><input type="text" id="new-p-name" placeholder="Namn" style="margin:0"><button class="btn" style="width:80px; padding:0" onclick="addProblem()">Lägg till</button></div>
+      <input type="text" id="new-p-id" placeholder="ID">
+      <input type="text" id="new-p-name" placeholder="Namn">
+      <button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button>
       <div id="admin-problem-list" style="margin-top:10px"></div>
     </div>
     <div class="card">
       <h3>Deltagare</h3>
       <div id="admin-user-list"></div>
-      <button class="btn" style="background:black; margin-top:20px" onclick="if(confirm('Nollställ ALLA sändningar?')) resetAll()">NOLLSTÄLL ALLT</button>
+      <button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
     </div>
   </div>
 </div>
@@ -108,7 +99,6 @@
     <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
     <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
   </div>
-  <div id="filter-container"></div>
   <div id="list"></div>
 </div>
 
@@ -118,11 +108,10 @@
   const token = urlParams.get('token');
   const action = urlParams.get('action');
   
-  let adminPwd = "", cachedData = null, currentTab = 'scorecard', currentFilter = 'ALLA';
+  let adminPwd = "", cachedData = null, currentTab = 'scorecard';
   let updateQueue = {}, localSends = {};
   let isLocked = false;
 
-  // --- REGISTRERING & KLASSER ---
   async function loadClasses() {
     try {
       const res = await fetch(`${API_URL}?action=getClasses`);
@@ -148,14 +137,13 @@
         document.getElementById('reg-form-container').style.display = 'none';
         document.getElementById('reg-result').style.display = 'block';
       }
-    } catch (e) { alert("Ett fel uppstod!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
+    } catch (e) { alert("Fel!"); btn.disabled = false; btn.innerText = "FÖRSÖK IGEN"; }
   }
 
-  // --- DATA & RENDER ---
   async function loadData(showLoading) {
     if(showLoading) switchView('loading');
+    const activeToken = token || new URLSearchParams(window.location.search).get('token');
     try {
-      const activeToken = token || new URLSearchParams(window.location.search).get('token');
       const res = await fetch(`${API_URL}?action=getAppData&token=${activeToken}`);
       cachedData = await res.json();
       renderApp();
@@ -168,11 +156,12 @@
     const end = new Date(cachedData.settings.endTime).getTime();
     const now = Date.now();
     const diff = end - now;
-    isLocked = (now > (end + 600000)); // Lås efter 10 minuter
+    isLocked = (now > (end + 600000)); 
     
     const h = Math.floor(Math.abs(diff)/3600000), m = Math.floor((Math.abs(diff)%3600000)/60000), s = Math.floor((Math.abs(diff)%60000)/1000);
     const timeStr = `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
     const el = document.getElementById('timer-display');
+    
     if (diff > 0) { el.innerText = "KVAR: " + timeStr; el.style.background = "var(--timer-bg)"; }
     else if (!isLocked) { el.innerText = "EFTERREG: " + timeStr; el.style.background = "var(--accent)"; }
     else { el.innerText = "AVSLUTAD"; el.style.background = "var(--danger)"; if(currentTab === 'scorecard') renderApp(); }
@@ -185,31 +174,22 @@
     
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${d.currentUser.userClass || 'Allmän'} | ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
-    const filterCont = document.getElementById('filter-container');
-    if (currentTab === 'leaderboard') {
-      let classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))];
-      let fHtml = `<div class="filter-bar"><button class="filter-btn ${currentFilter==='ALLA'?'active':''}" onclick="setFilter('ALLA')">ALLA</button>`;
-      classes.forEach(c => { fHtml += `<button class="filter-btn ${currentFilter===c?'active':''}" onclick="setFilter('${c}')">${c.toUpperCase()}</button>`; });
-      filterCont.innerHTML = fHtml + `</div>`;
-    } else filterCont.innerHTML = '';
-
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
         const val = d.problemValues[p.id];
         const score = val ? Math.round((localSends[p.id] * d.currentUser.factor / val.totalShares) * d.settings.totalPot) : 0;
-        const isSyncing = updateQueue[p.id]?.length > 0;
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${isSyncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper">
-          <button class="btn-s" onclick="update('${p.id}',-1)" ${isLocked || isSyncing ? 'disabled' : ''}>−</button>
+        const syncing = updateQueue[p.id]?.length > 0;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${syncing ? '<span class="sync-dots"></span>' : score.toLocaleString() + ' p'}</div><div class="stepper">
+          <button class="btn-s" onclick="update('${p.id}',-1)" ${isLocked || syncing ? 'disabled' : ''}>−</button>
           <b style="font-size:28px;">${localSends[p.id] || 0}</b>
-          <button class="btn-s plus" onclick="update('${p.id}',1)" ${isLocked || isSyncing ? 'disabled' : ''}>+</button>
+          <button class="btn-s plus" onclick="update('${p.id}',1)" ${isLocked || syncing ? 'disabled' : ''}>+</button>
         </div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
-      const filtered = currentFilter === 'ALLA' ? d.leaderboard : d.leaderboard.filter(u => (u.userClass || "Allmän") === currentFilter);
-      filtered.forEach((u,i) => { html += `<div class="row"><span>${i+1}. ${u.name} <small style="color:#888;">[${u.userClass || 'Allmän'}]</small></span><strong>${u.score.toLocaleString()}</strong></div>`; });
+      d.leaderboard.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
     } else {
-      d.problems.forEach(p => { html += `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
+      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
   }
@@ -237,58 +217,53 @@
     }
   }
 
-  // --- ADMIN FUNKTIONER ---
+  // --- ADMIN (Back-to-basics backend names) ---
   async function loadAdmin() {
     if(!adminPwd) adminPwd = prompt("Lösenord:");
     switchView('loading');
     try {
       const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
-      const data = await res.json();
-      renderAdmin(data);
-      switchView('admin');
-    } catch (e) { alert("Fel lösenord eller anslutning!"); location.reload(); }
+      const data = await res.json(); renderAdmin(data); switchView('admin');
+    } catch (e) { alert("Fel!"); location.reload(); }
   }
 
-  function renderAdmin(d) {
-    document.getElementById('adm-pot').value = d.settings.pot;
-    document.getElementById('adm-ref').value = d.settings.refHeight;
-    document.getElementById('adm-start').value = new Date(d.settings.start).toISOString().slice(0,16);
-    document.getElementById('adm-end').value = new Date(d.settings.end).toISOString().slice(0,16);
-    document.getElementById('admin-class-list').innerHTML = (d.classes || []).map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass('${c}')">X</button></div>`).join('');
-    document.getElementById('admin-problem-list').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem('${p.id}')">Radera</button></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = d.users.map(u => `<div class="row"><span>${u.name} [${u.userClass || 'Allmän'}]</span><button class="btn-mini" onclick="resetUser('${u.id}')">Reset</button></div>`).join('');
+  function renderAdmin(data) {
+    document.getElementById('adm-pot').value = data.settings.pot;
+    document.getElementById('adm-ref').value = data.settings.refHeight;
+    document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
+    document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
+    document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row"><span>${u.name}</span><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button></div>`).join('');
   }
 
   async function saveSettings() {
-    const p = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(p)}`);
+    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
     renderAdmin(await res.json()); alert("Sparat!");
   }
 
   async function addProblem() {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${document.getElementById('new-p-id').value}&name=${encodeURIComponent(document.getElementById('new-p-name').value)}`);
-    renderAdmin(await res.json());
-  }
-  async function addClass() {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(document.getElementById('new-class-name').value)}`);
-    renderAdmin(await res.json()); document.getElementById('new-class-name').value = "";
-  }
-  async function deleteClass(name) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(name)}`);
-    renderAdmin(await res.json());
-  }
-  async function deleteProblem(id) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${id}`);
-    renderAdmin(await res.json());
-  }
-  async function resetUser(id) {
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${id}`);
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${document.getElementById('new-p-id').value}&name=${document.getElementById('new-p-name').value}`);
     renderAdmin(await res.json());
   }
 
-  // --- NAVIGATION ---
+  async function deleteProblem(btn, pId) {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${pId}`);
+    renderAdmin(await res.json());
+  }
+
+  async function resetUser(btn, userId) {
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${userId}`);
+    renderAdmin(await res.json());
+  }
+
+  function confirmResetAll() {
+    if(confirm("Varning: Detta raderar ALLA sändningar! Är du säker?")) {
+      fetch(`${API_URL}?pwd=${adminPwd}&action=resetAll`).then(res => res.json()).then(data => renderAdmin(data));
+    }
+  }
+
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
-  function setFilter(f) { currentFilter = f; renderApp(); }
   function switchView(id) { document.querySelectorAll('.view').forEach(v => v.style.display = 'none'); document.getElementById('view-' + id).style.display = 'block'; }
 
   window.onload = () => {
