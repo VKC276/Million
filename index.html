@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen v1.0</title>
+  <title>Miljontävlingen</title>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
-    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
+    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
     .header-card { background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
+    .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: #27ae60; }
@@ -16,143 +17,187 @@
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 24px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
-    .market-val { color: #27ae60; font-weight: bold; }
+    .market-val { color: #27ae60; font-weight: bold; font-family: monospace; }
+    
+    /* Scoreboard Specifikt */
+    #view-scoreboard { max-width: 1100px; }
+    .sb-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 800px) { .sb-container { grid-template-columns: 1fr; } }
+    .sb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; font-size: 16px; }
+    .sb-title { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
 </head>
 <body>
 
-<div id="loading" style="text-align:center; padding-top:100px; font-weight:bold; color:#7f8c8d;">Laddar din scorecard...</div>
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
+  <strong>Miljontävlingen</strong><br>Ansluter...
+</div>
 
-<div id="app" class="view">
-  <div id="header"></div>
+<div id="view-scoreboard" class="view">
+    <div class="card" style="background:#2c3e50; color:white; text-align:center;">
+        <h2 style="margin:0">Scoreboard</h2>
+        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">Laddar status...</div>
+    </div>
+    <div class="sb-container">
+        <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
+        <div><h3 class="sb-title">Börsen (Marknadsvärde)</h3><div class="card" id="sb-market-full" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
+    </div>
+</div>
+
+<div id="view-app" class="view">
+  <div id="timer-display" class="timer-banner"></div>
+  <div id="header-box"></div>
   <div class="tab-nav">
-    <button id="tab-scorecard" class="tab-btn active" onclick="setTab('scorecard')">MITT SCORECARD</button>
-    <button id="tab-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
-    <button id="tab-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
+    <button id="btn-scorecard" class="tab-btn active" onclick="setTab('scorecard')">SCORECARD</button>
+    <button id="btn-leaderboard" class="tab-btn" onclick="setTab('leaderboard')">TOPPLISTA</button>
+    <button id="btn-market" class="tab-btn" onclick="setTab('market')">BÖRSEN</button>
   </div>
   <div id="list"></div>
 </div>
 
 <script>
   const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
-  const token = new URLSearchParams(window.location.search).get('token');
-  let cachedData = null;
-  let currentTab = 'scorecard';
-  let isProcessing = false;
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('token');
+  const action = urlParams.get('action');
+  
+  let cachedData = null, isProcessing = false, currentTab = 'scorecard';
 
-  // Beräknar din poäng på ett specifikt problem i realtid
-  function getProblemScore(pId) {
-    const d = cachedData;
-    if (!d) return 0;
-    const myCount = (d.userSends && d.userSends[pId]) || 0;
-    if (myCount === 0) return 0;
-    
-    const pVal = d.problemValues[pId];
-    const pot = d.settings?.totalPot || 1000000;
-    
-    if (pVal && pVal.totalShares > 0) {
-      // Din tyngd = antal sends * handicap
-      const myWeighted = myCount * d.currentUser.factor;
-      // Din andel av alla viktade sends
-      const score = (myWeighted / pVal.totalShares) * pot;
-      return isNaN(score) ? 0 : score;
-    }
-    return pot; // Om du är ensam på problemet
+  function switchView(id) {
+    document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
+    document.getElementById('view-' + id).style.display = 'block';
   }
 
-  // Vad är marknadsvärdet (vad får nästa person som klättrar den 1 gång?)
+  // --- DIN FUNGERANDE BERÄKNINGSLOGIK ---
+  function getProblemScore(pId) {
+    const d = cachedData;
+    const myCount = (d.userSends && d.userSends[pId]) || 0;
+    if (myCount === 0) return 0;
+    const pVal = d.problemValues[pId];
+    const pot = d.settings?.totalPot || 1000000;
+    if (pVal && pVal.totalShares > 0) {
+      const myWeighted = myCount * d.currentUser.factor;
+      return (myWeighted / pVal.totalShares) * pot;
+    }
+    return pot;
+  }
+
   function getMarketValue(pId) {
     const d = cachedData;
     const pot = d?.settings?.totalPot || 1000000;
     const totalShares = d?.problemValues[pId]?.totalShares || 0;
-    // Nästa person (HCP 1.0) lägger till 1.0 i totalen
     return pot / (totalShares + 1.0);
   }
 
-  async function update(pId, delta) {
+  // --- DATAHÄMTNING ---
+  async function loadData(showLoading) {
     if (isProcessing) return;
-    isProcessing = true;
+    if (showLoading) switchView('loading');
     
-    // Visuell feedback direkt
-    const countEl = document.getElementById(`count-${pId}`);
-    if(countEl) countEl.style.opacity = "0.3";
-
+    const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:token};
     try {
-      const act = delta > 0 ? 'registerSend' : 'removeSend';
-      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+      const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
       cachedData = await res.json();
-    } catch (e) {
-      console.error("Update failed:", e);
-    } finally {
-      isProcessing = false;
-      render();
-    }
+      
+      if (action === 'scoreboard') {
+        renderScoreboard();
+        switchView('scoreboard');
+      } else {
+        renderApp();
+        switchView('app');
+      }
+    } catch (e) { console.error("Fel:", e); }
   }
 
-  async function load() {
-    if (isProcessing) return;
-    try {
-      const res = await fetch(`${API_URL}?token=${token}&action=getAppData`);
-      cachedData = await res.json();
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('app').style.display = 'block';
-      render();
-    } catch(e) { console.error("Load failed:", e); }
-  }
-
-  function render() {
+  // --- RENDERING ---
+  function renderScoreboard() {
     const d = cachedData;
-    if (!d || !d.currentUser) return;
+    document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `
+      <div class="sb-row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>
+    `).join('') || '<div class="sb-row">Inga resultat än</div>';
 
-    // Hitta din totalpoäng i leaderboarden
+    document.getElementById('sb-market-full').innerHTML = d.problems.map(p => `
+      <div class="sb-row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>
+    `).join('');
+    
+    if(d.settings && d.settings.endTime) updateTimers(d.settings.endTime);
+  }
+
+  function renderApp() {
+    const d = cachedData;
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
-    document.getElementById('header').innerHTML = `
+    document.getElementById('header-box').innerHTML = `
       <div class="card header-card">
-        <div><small style="opacity:0.8">HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small style="opacity:0.8">TOTAL POÄNG</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
+        <div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
+        <div style="text-align:right;"><small>TOTAL POÄNG</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
       </div>`;
 
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
         const count = d.userSends[p.id] || 0;
-        const score = getProblemScore(p.id);
         html += `<div class="card">
-          <strong style="font-size:18px;">#${p.id} ${p.name}</strong>
-          <div class="p-score">${Math.round(score).toLocaleString()} p</div>
+          <strong>#${p.id} ${p.name}</strong>
+          <div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div>
           <div class="stepper">
-            <button class="btn-s" onclick="update('${p.id}',-1)">−</button>
-            <b id="count-${p.id}" style="font-size:28px;">${count}</b>
-            <button class="btn-s plus" onclick="update('${p.id}',1)">+</button>
+            <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
+            <b style="font-size:28px;">${count}</b>
+            <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
           </div>
         </div>`;
       });
     } else if (currentTab === 'market') {
       d.problems.forEach(p => {
-        html += `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>#${p.id} ${p.name}</span><span class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</span>
+        html += `<div class="card" style="display:flex; justify-content:space-between;">
+          <span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong>
         </div>`;
       });
     } else {
       d.leaderboard.forEach((u,i) => {
-        html += `<div class="card" style="display:flex; justify-content:space-between; align-items:center; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60':''}">
-          <span>${i+1}. ${u.name}</span><strong style="color:#27ae60">${u.score.toLocaleString()} p</strong>
+        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60':''}">
+          <span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong>
         </div>`;
       });
     }
     document.getElementById('list').innerHTML = html;
+    if(d.settings && d.settings.endTime) updateTimers(d.settings.endTime);
+  }
+
+  async function updateScore(pId, delta) {
+    if (isProcessing) return;
+    isProcessing = true;
+    try {
+      const act = delta > 0 ? 'registerSend' : 'removeSend';
+      const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
+      cachedData = await res.json();
+      renderApp();
+    } catch (e) { alert("Kunde inte spara"); }
+    isProcessing = false;
+  }
+
+  function updateTimers(endTime) {
+    const remain = new Date(endTime).getTime() - Date.now();
+    const txt = remain > 0 ? "Tid kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" : "Tävlingen avslutad";
+    if(document.getElementById('sb-timer')) document.getElementById('sb-timer').innerText = txt;
+    if(document.getElementById('timer-display')) document.getElementById('timer-display').innerText = txt;
   }
 
   function setTab(t) { 
     currentTab = t; 
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-'+t).classList.add('active');
-    render(); 
+    document.getElementById('btn-'+t).classList.add('active');
+    renderApp(); 
   }
 
-  window.onload = load;
-  setInterval(load, 30000); // Uppdatera var 30:e sekund
+  window.onload = () => {
+    if (action === 'scoreboard' || token) {
+      loadData(true);
+      setInterval(() => loadData(false), 30000);
+    } else {
+      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk.";
+    }
+  };
 </script>
 </body>
 </html>
