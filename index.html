@@ -7,20 +7,13 @@
   <style>
     :root { 
       --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
-      --timer-bg: #3498db; /* Blå som standard (väntar) */
+      --timer-bg: #3498db;
     }
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
     .view { display: none; max-width: 500px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
     .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    
-    /* Dynamisk Timer Banner */
-    .timer-banner { 
-      background: var(--timer-bg); 
-      color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; 
-      margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s;
-    }
-
+    .timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s; }
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
@@ -31,47 +24,51 @@
     .market-val { color: var(--primary); font-weight: bold; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
     .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; }
-
-    /* Scoreboard & Admin Specifikt */
     #view-scoreboard, #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
-    .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; }
+    .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
     .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Västervik Climbing</strong><br>Ansluter till servern...
+  <strong>Västervik Climbing</strong><br>Ansluter...
 </div>
 
 <div id="view-admin" class="view">
   <div class="card" style="background:var(--danger); color:white; text-align:center;">
     <h2 style="margin:0">Adminpanel</h2>
   </div>
+  <div class="card">
+    <h3>Tävlingsinställningar</h3>
+    <div class="grid">
+      <div><label>Pott per problem:</label><input type="number" id="adm-pot"></div>
+      <div><label>Ref-längd (cm):</label><input type="number" id="adm-ref"></div>
+      <div><label>Starttid:</label><input type="datetime-local" id="adm-start"></div>
+      <div><label>Sluttid:</label><input type="datetime-local" id="adm-end"></div>
+    </div>
+    <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara Inställningar</button>
+  </div>
   <div class="grid">
     <div class="card">
-      <h3>Inställningar</h3>
-      <label>Pott per problem:</label><input type="number" id="adm-pot">
-      <label>Ref-längd (cm):</label><input type="number" id="adm-ref">
-      <button class="btn" style="background:var(--dark)" onclick="saveSettings()">Spara</button>
+      <h3>Problem</h3>
+      <input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn">
+      <button class="btn" onclick="addProblem()">Lägg till</button>
+      <div id="admin-problem-list" style="margin-top:15px"></div>
     </div>
     <div class="card">
-      <h3>Nytt Problem</h3>
-      <input type="text" id="new-p-id" placeholder="ID (t.ex. 12)">
-      <input type="text" id="new-p-name" placeholder="Namn (t.ex. 'Taket')">
-      <button class="btn" onclick="addProblem()">Lägg till</button>
+      <h3>Deltagare</h3>
+      <div id="admin-user-list"></div>
+      <button class="btn" style="background:black; margin-top:20px" onclick="confirmResetAll()">⚠️ NOLLSTÄLL HELA TÄVLINGEN</button>
     </div>
   </div>
-  <div class="card" id="admin-user-list">Hämtar deltagare...</div>
 </div>
 
 <div id="view-scoreboard" class="view">
   <div id="sb-timer-box" class="timer-banner" style="border-radius: 12px 12px 0 0; margin-bottom: 0;"></div>
-  <div class="card header-card" style="justify-content: center; flex-direction: column; border-radius: 0 0 12px 12px;">
-    <h2 style="margin:0">Scoreboard</h2>
-  </div>
+  <div class="card header-card" style="justify-content: center; border-radius: 0 0 12px 12px;"><h2 style="margin:0">Scoreboard</h2></div>
   <div class="grid" style="margin-top: 20px;">
     <div><h3 class="title-bar">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0"></div></div>
     <div><h3 class="title-bar">Börsen (Värde nu)</h3><div class="card" id="sb-market" style="padding:0"></div></div>
@@ -94,8 +91,7 @@
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
   const action = urlParams.get('action');
-  let adminPwd = "";
-  let cachedData = null, isProcessing = false, currentTab = 'scorecard';
+  let adminPwd = "", cachedData = null, isProcessing = false, currentTab = 'scorecard';
 
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
@@ -128,28 +124,50 @@
     const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
     const data = await res.json();
     if(data.error) { alert("Fel!"); location.reload(); return; }
-    
+    renderAdmin(data);
+    switchView('admin');
+  }
+
+  function renderAdmin(data) {
     document.getElementById('adm-pot').value = data.settings.pot;
     document.getElementById('adm-ref').value = data.settings.refHeight;
-    document.getElementById('admin-user-list').innerHTML = "<h3>Deltagare</h3>" + data.users.map(u => `<div class="row"><span>${u.name}</span><span>${u.length} cm</span></div>`).join('');
-    switchView('admin');
+    if(data.settings.start) document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
+    if(data.settings.end) document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
+    
+    document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `
+      <div class="row"><span>#${p.id} ${p.name}</span><button onclick="deleteProblem('${p.id}')" style="background:none; border:none; color:red; cursor:pointer">✖️</button></div>
+    `).join('');
+    
+    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
+      <div class="row"><span>${u.name}</span><div>
+        <button onclick="resetUser('${u.id}')">Reset</button>
+        <button onclick="deleteUser('${u.id}')" style="color:red">Radera</button>
+      </div></div>
+    `).join('');
   }
 
   async function saveSettings() {
     const pot = document.getElementById('adm-pot').value;
     const ref = document.getElementById('adm-ref').value;
-    await fetch(`${API_URL}?action=updateSettings&pwd=${adminPwd}&pot=${pot}&refHeight=${ref}`);
-    alert("Sparat!");
+    const start = document.getElementById('adm-start').value;
+    const end = document.getElementById('adm-end').value;
+    await fetch(`${API_URL}?action=updateSettings&pwd=${adminPwd}&pot=${pot}&refHeight=${ref}&start=${start}&end=${end}`);
+    alert("Sparat!"); loadAdmin();
   }
 
   async function addProblem() {
     const id = document.getElementById('new-p-id').value;
     const name = document.getElementById('new-p-name').value;
     await fetch(`${API_URL}?action=addProblem&pwd=${adminPwd}&pId=${id}&name=${name}`);
-    alert("Tillagt!"); location.reload();
+    loadAdmin();
   }
 
-  // --- CORE LOGIK ---
+  async function deleteProblem(id) { if(confirm("Radera?")) { await fetch(`${API_URL}?action=deleteProblem&pwd=${adminPwd}&pId=${id}`); loadAdmin(); } }
+  async function resetUser(id) { if(confirm("Nollställ?")) { await fetch(`${API_URL}?action=resetUser&pwd=${adminPwd}&userId=${id}`); loadAdmin(); } }
+  async function deleteUser(id) { if(confirm("Radera?")) { await fetch(`${API_URL}?action=deleteUser&pwd=${adminPwd}&userId=${id}`); loadAdmin(); } }
+  async function confirmResetAll() { if(confirm("RADERA ALLA ANVÄNDARE OCH SCORE?")) { await fetch(`${API_URL}?action=resetEverything&pwd=${adminPwd}`); location.reload(); } }
+
+  // --- CORE ---
   async function loadData(showLoading) {
     if(isProcessing) return;
     if(showLoading) switchView('loading');
@@ -164,121 +182,54 @@
 
   function renderScoreboard() {
     const d = cachedData;
-    document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `
-      <div class="row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>
-    `).join('');
-    document.getElementById('sb-market').innerHTML = d.problems.map(p => `
-      <div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</strong></div>
-    `).join('');
-    refreshTimerDisplay();
+    document.getElementById('sb-list').innerHTML = d.leaderboard.slice(0,10).map((u,i) => `<div class="row"><span>${i+1}. ${u.name}</span><strong class="market-val">${u.score.toLocaleString()} p</strong></div>`).join('');
+    document.getElementById('sb-market').innerHTML = d.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</strong></div>`).join('');
+    refreshTimer();
   }
 
   function renderApp() {
     const d = cachedData;
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
-    document.getElementById('header-box').innerHTML = `
-      <div class="card header-card">
-        <div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div>
-      </div>`;
-
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div>
-          <div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
+        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${Math.round(getProblemScore(p.id)).toLocaleString()} p</div><div class="stepper"><button class="btn-s" onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${d.userSends[p.id]||0}</b><button class="btn-s plus" onclick="update('${p.id}',1)">+</button></div></div>`;
       });
     } else if (currentTab === 'leaderboard') {
-      d.leaderboard.forEach((u,i) => {
-        html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`;
-      });
+      d.leaderboard.forEach((u,i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name}</span><strong>${u.score.toLocaleString()} p</strong></div>`; });
     } else {
-      d.problems.forEach(p => {
-        html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>`;
-      });
+      d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()} p</strong></div>`; });
     }
     document.getElementById('list').innerHTML = html;
-    refreshTimerDisplay();
+    refreshTimer();
   }
 
   async function update(pId, delta) {
     isProcessing = true;
-    const act = delta > 0 ? 'registerSend' : 'removeSend';
-    const res = await fetch(`${API_URL}?token=${token}&action=${act}&pId=${pId}`);
-    cachedData = await res.json();
-    isProcessing = false;
-    renderApp();
+    await fetch(`${API_URL}?token=${token}&action=${delta>0?'registerSend':'removeSend'}&pId=${pId}`);
+    loadData(false); isProcessing = false;
   }
 
-  // --- TIMER LOGIK ---
-  function refreshTimerDisplay() {
-    if (!cachedData || !cachedData.settings) return;
-    
-    // Antag att kalkylbladet har startTime i B3 och endTime i B4
-    const startTime = new Date(cachedData.settings.startTime || "2024-01-01 08:00").getTime();
-    const endTime = new Date(cachedData.settings.endTime).getTime();
-    const now = Date.now();
-    
-    let targetTime, label, color;
-    
-    if (now < startTime) {
-      // Fas 1: Väntar på start
-      targetTime = startTime - now;
-      label = "TID TILL START: ";
-      color = "#3498db"; // Blå
-    } else if (now < endTime) {
-      // Fas 2: Tävling pågår
-      targetTime = endTime - now;
-      label = "TID KVAR: ";
-      
-      // Färgkodning baserat på tid
-      const mins = targetTime / 60000;
-      if (mins > 60) color = "#27ae60"; // Grön (>1h)
-      else if (mins > 10) color = "#f1c40f"; // Gul (10-60 min)
-      else color = "#e74c3c"; // Röd (<10 min)
-    } else {
-      // Fas 3: Efterregistrering (visa t.ex. 1 timme efter slut)
-      targetTime = (endTime + 3600000) - now; 
-      label = "TID KVAR ATT EFTERREGISTRERA: ";
-      color = "#9b59b6"; // Lila
-      if (targetTime < 0) { label = "TÄVLINGEN AVSLUTAD"; targetTime = 0; }
-    }
-
-    const h = Math.floor(targetTime / 3600000);
-    const m = Math.floor((targetTime % 3600000) / 60000);
-    const s = Math.floor((targetTime % 60000) / 1000);
-    const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-    
-    const displayStr = targetTime > 0 ? label + timeStr : label;
-    
-    const elements = ['timer-display', 'sb-timer-box'];
-    elements.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.innerText = displayStr;
-        el.style.backgroundColor = color;
-      }
-    });
+  function refreshTimer() {
+    if (!cachedData) return;
+    const start = new Date(cachedData.settings.startTime).getTime(), end = new Date(cachedData.settings.endTime).getTime(), now = Date.now();
+    let target, label, color;
+    if (now < start) { target = start - now; label = "TID TILL START: "; color = "#3498db"; }
+    else if (now < end) { target = end - now; label = "TID KVAR: "; const mins = target/60000; color = mins>60 ? "#27ae60" : (mins>10 ? "#f1c40f" : "#e74c3c"); }
+    else { target = (end + 3600000) - now; label = "TID KVAR ATT EFTERREGISTRERA: "; color = "#9b59b6"; if(target<0) { label="AVSLUTAD"; target=0; } }
+    const h = Math.floor(target/3600000), m = Math.floor((target%3600000)/60000), s = Math.floor((target%60000)/1000);
+    const str = label + (target>0 ? `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "");
+    ['timer-display', 'sb-timer-box'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerText = str; el.style.backgroundColor = color; } });
   }
 
-  // Kör timern varje sekund
-  setInterval(refreshTimerDisplay, 1000);
-
-  function setTab(t) { 
-    currentTab = t; 
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('btn-'+t).classList.add('active');
-    renderApp(); 
-  }
+  setInterval(refreshTimer, 1000);
+  function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (action === 'scoreboard' || token) {
-      loadData(true);
-      setInterval(() => loadData(false), 30000);
-    } else {
-      document.getElementById('view-loading').innerHTML = "Personlig länk saknas.";
-    }
+    else if (action === 'scoreboard' || token) { loadData(true); setInterval(() => loadData(false), 30000); }
+    else { document.getElementById('view-loading').innerHTML = "Länk saknas."; }
   };
 </script>
 </body>
