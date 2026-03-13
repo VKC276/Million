@@ -6,174 +6,45 @@
 <title>Miljontävlingen</title>
 
 <style>
-:root{
---primary:#27ae60;
---dark:#2c3e50;
---bg:#f0f2f1;
---accent:#e67e22;
---danger:#c0392b;
---timer-bg:#3498db;
+:root { 
+  --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
+  --timer-bg: #3498db;
 }
 
-body{
-font-family:-apple-system,system-ui,sans-serif;
-margin:0;
-background:var(--bg);
-padding:10px;
-color:#333;
-}
+body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
+.view { display: none; max-width: 500px; margin: 0 auto; }
 
-.view{
-display:none;
-max-width:500px;
-margin:0 auto;
-}
+.card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
 
-.card{
-background:white;
-padding:18px;
-border-radius:12px;
-margin-bottom:12px;
-box-shadow:0 2px 6px rgba(0,0,0,0.08);
-position:relative;
-border:1px solid #eee;
-}
+.header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
 
-.header-card{
-background:var(--dark);
-color:white;
-display:flex;
-justify-content:space-between;
-align-items:center;
-border:none;
-}
+.timer-banner { background: var(--timer-bg); color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s; }
 
-.timer-banner{
-background:var(--timer-bg);
-color:white;
-text-align:center;
-padding:15px;
-font-weight:bold;
-border-radius:8px;
-margin-bottom:12px;
-font-size:16px;
-font-family:monospace;
-}
+.tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
 
-.tab-nav{
-display:flex;
-border-radius:8px;
-overflow:hidden;
-margin-bottom:15px;
-background:#ddd;
-}
+.tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
 
-.tab-btn{
-flex:1;
-padding:12px;
-border:none;
-background:#34495e;
-color:white;
-font-weight:bold;
-cursor:pointer;
-font-size:11px;
-}
+.tab-btn.active { background: var(--primary); }
 
-.tab-btn.active{
-background:var(--primary);
-}
+.btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
 
-.p-score{
-position:absolute;
-top:18px;
-right:18px;
-color:var(--primary);
-font-weight:800;
-font-size:18px;
-}
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-.stepper{
-display:flex;
-align-items:center;
-justify-content:space-between;
-margin-top:15px;
-background:#f9f9f9;
-padding:8px;
-border-radius:30px;
-}
+.btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
 
-.btn-s{
-width:50px;
-height:50px;
-border-radius:50%;
-border:none;
-font-size:24px;
-font-weight:bold;
-cursor:pointer;
-background:#ddd;
-display:flex;
-align-items:center;
-justify-content:center;
-}
-
-.btn-s.plus{
-background:var(--primary);
-color:white;
-}
-
-.btn{
-background:var(--primary);
-color:white;
-border:none;
-padding:15px;
-border-radius:8px;
-width:100%;
-font-weight:bold;
-cursor:pointer;
-font-size:16px;
-}
-
-.btn:disabled{
-opacity:0.6;
-cursor:wait;
-}
-
-.btn-mini{
-padding:6px 10px;
-font-size:11px;
-border-radius:4px;
-border:1px solid #ddd;
-background:white;
-cursor:pointer;
-}
-
-.row{
-display:flex;
-justify-content:space-between;
-padding:10px 12px;
-border-bottom:1px solid #eee;
-align-items:center;
-}
-
-.grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:20px;
-}
-
+.row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; align-items: center; overflow: hidden; }
 </style>
 </head>
 
 <body>
 
-<div id="view-loading" class="view" style="display:block;text-align:center;padding-top:100px;">
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
 <strong>Västervik Climbing</strong><br>Ansluter...
 </div>
 
-
 <div id="view-admin" class="view">
 
-<div class="card" style="background:var(--danger);color:white;text-align:center;">
+<div class="card" style="background:var(--danger); color:white; text-align:center;">
 <h2 style="margin:0">Adminpanel</h2>
 </div>
 
@@ -182,33 +53,15 @@ gap:20px;
 <h3>Inställningar</h3>
 
 <div class="grid">
-
-<div>
-<label>Pott</label>
-<input type="number" id="adm-pot">
-</div>
-
-<div>
-<label>Ref (cm)</label>
-<input type="number" id="adm-ref">
-</div>
-
-<div>
-<label>Start</label>
-<input type="datetime-local" id="adm-start">
-</div>
-
-<div>
-<label>Slut</label>
-<input type="datetime-local" id="adm-end">
-</div>
-
+<div><label>Pott:</label><input type="number" id="adm-pot"></div>
+<div><label>Ref (cm):</label><input type="number" id="adm-ref"></div>
+<div><label>Start:</label><input type="datetime-local" id="adm-start"></div>
+<div><label>Slut:</label><input type="datetime-local" id="adm-end"></div>
 </div>
 
 <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
 
 </div>
-
 
 <div class="grid">
 
@@ -225,230 +78,162 @@ gap:20px;
 
 </div>
 
-
 <div class="card">
 
 <h3>Deltagare</h3>
 
 <div id="admin-user-list"></div>
 
-<button class="btn" style="background:black;margin-top:20px" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
+<button class="btn" style="background:black; margin-top:20px" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
 
 </div>
 
 </div>
-
 </div>
-
 
 <script>
 
-const API_URL="https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxsNal77lmgadq-4qnmN5KzNGDGddm6gOKy7sFR06ax9SrzSe0PkXF1vOpF7TY5bbDuRw/exec";
 
-let adminPwd="";
+let adminPwd = "";
 
 
-/* ---------- BUTTON LOADING HELPERS ---------- */
+/* ===== KNAPPSTATUS HELPERS ===== */
 
-function setBtnLoading(btn,text){
+function setButtonState(btn, loadingText) {
 
-btn.dataset.original=btn.innerText
-btn.innerText=text
-btn.disabled=true
+if (!btn.dataset.original) {
+btn.dataset.original = btn.innerText;
+}
+
+btn.innerText = loadingText;
+btn.disabled = true;
 
 }
 
-function resetBtn(btn){
+function resetButtonState(btn) {
 
-btn.innerText=btn.dataset.original
-btn.disabled=false
-
-}
-
-
-/* ---------- ADMIN LOAD ---------- */
-
-async function loadAdmin(){
-
-if(!adminPwd) adminPwd=prompt("Lösenord:")
-
-try{
-
-const res=await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`)
-
-renderAdmin(await res.json())
-
-document.getElementById("view-loading").style.display="none"
-document.getElementById("view-admin").style.display="block"
-
-}
-
-catch(e){
-
-alert("Fel!")
-
-}
+btn.innerText = btn.dataset.original;
+btn.disabled = false;
 
 }
 
 
-/* ---------- RENDER ADMIN ---------- */
+/* ===== ADMIN LOAD ===== */
 
-function renderAdmin(data){
+async function loadAdmin() {
 
-document.getElementById("adm-pot").value=data.settings.pot
-document.getElementById("adm-ref").value=data.settings.refHeight
-document.getElementById("adm-start").value=data.settings.start
-document.getElementById("adm-end").value=data.settings.end
+if(!adminPwd) adminPwd = prompt("Lösenord:");
 
-document.getElementById("admin-problem-list").innerHTML=data.problems.map(p=>
+try {
 
+const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
+renderAdmin(await res.json());
+
+document.getElementById("view-loading").style.display = "none";
+document.getElementById("view-admin").style.display = "block";
+
+} catch(e) {
+
+alert("Fel!");
+location.reload();
+
+}
+
+}
+
+
+/* ===== RENDER ADMIN ===== */
+
+function renderAdmin(data) {
+
+document.getElementById('adm-pot').value = data.settings.pot;
+document.getElementById('adm-ref').value = data.settings.refHeight;
+document.getElementById('adm-start').value = data.settings.start;
+document.getElementById('adm-end').value = data.settings.end;
+
+document.getElementById('admin-problem-list').innerHTML =
+data.problems.map(p =>
 `<div class="row">
-
 <span>#${p.id} ${p.name}</span>
-
 <button class="btn-mini" onclick="deleteProblem(this,'${p.id}')">Radera</button>
-
 </div>`
+).join('');
 
-).join("")
-
-
-document.getElementById("admin-user-list").innerHTML=data.users.map(u=>
-
+document.getElementById('admin-user-list').innerHTML =
+data.users.map(u =>
 `<div class="row">
-
 <span>${u.name}</span>
-
 <button class="btn-mini" onclick="resetUser(this,'${u.id}')">Reset</button>
-
 </div>`
-
-).join("")
+).join('');
 
 }
 
 
-/* ---------- SAVE SETTINGS ---------- */
+/* ===== SAVE SETTINGS ===== */
 
-async function saveSettings(){
+async function saveSettings() {
 
-const btn=document.getElementById("btn-save-settings")
+const btn = document.getElementById("btn-save-settings");
+setButtonState(btn,"Sparar...");
 
-setBtnLoading(btn,"Sparar...")
-
-const params={
-
+const params = {
 action:'updateSettings',
 pot:document.getElementById('adm-pot').value,
 refHeight:document.getElementById('adm-ref').value,
 start:document.getElementById('adm-start').value,
 end:document.getElementById('adm-end').value
+};
+
+try {
+
+const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
+renderAdmin(await res.json());
+alert("Sparat!");
+
+} catch(e) {
+
+alert("Fel!");
 
 }
 
-try{
-
-const res=await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`)
-
-renderAdmin(await res.json())
-
-}
-
-catch(e){
-
-alert("Fel vid sparning")
-
-}
-
-resetBtn(btn)
+resetButtonState(btn);
 
 }
 
 
-/* ---------- ADD PROBLEM ---------- */
+/* ===== ADD PROBLEM ===== */
 
-async function addProblem(){
+async function addProblem() {
 
-const btn=document.getElementById("btn-add-problem")
+const btn = document.getElementById("btn-add-problem");
+setButtonState(btn,"Lägger till...");
 
-setBtnLoading(btn,"Lägger till...")
+const id = document.getElementById("new-p-id").value;
+const name = document.getElementById("new-p-name").value;
 
-const id=document.getElementById("new-p-id").value
-const name=document.getElementById("new-p-name").value
+try {
 
-try{
+const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&id=${id}&name=${encodeURIComponent(name)}`);
+renderAdmin(await res.json());
 
-const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&id=${id}&name=${encodeURIComponent(name)}`)
+} catch(e) {
 
-renderAdmin(await res.json())
-
-}
-
-catch(e){
-
-alert("Fel vid skapande")
+alert("Fel!");
 
 }
 
-resetBtn(btn)
+resetButtonState(btn);
 
 }
 
 
-/* ---------- DELETE PROBLEM ---------- */
+window.onload = () => {
 
-async function deleteProblem(btn,id){
+loadAdmin();
 
-setBtnLoading(btn,"...")
-
-try{
-
-const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&id=${id}`)
-
-renderAdmin(await res.json())
-
-}
-
-catch(e){
-
-alert("Fel")
-
-}
-
-}
-
-
-/* ---------- RESET USER ---------- */
-
-async function resetUser(btn,id){
-
-setBtnLoading(btn,"...")
-
-try{
-
-const res=await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&id=${id}`)
-
-renderAdmin(await res.json())
-
-}
-
-catch(e){
-
-alert("Fel")
-
-}
-
-}
-
-
-/* ---------- INIT ---------- */
-
-window.onload=()=>{
-
-loadAdmin()
-
-}
+};
 
 </script>
 
