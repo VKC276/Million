@@ -5,12 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Miljontävlingen</title>
   <style>
-    :root { --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b; }
+    :root { 
+      --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
+      --timer-bg: #3498db; /* Blå som standard (väntar) */
+    }
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: var(--bg); padding: 10px; color: #333; }
     .view { display: none; max-width: 500px; margin: 0 auto; }
     .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; border: 1px solid #eee; }
     .header-card { background: var(--dark); color: white; display: flex; justify-content: space-between; align-items: center; border: none; }
-    .timer-banner { background: var(--accent); color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+    
+    /* Dynamisk Timer Banner */
+    .timer-banner { 
+      background: var(--timer-bg); 
+      color: white; text-align: center; padding: 15px; font-weight: bold; border-radius: 8px; 
+      margin-bottom: 12px; font-size: 16px; font-family: monospace; transition: background 0.5s;
+    }
+
     .tab-nav { display: flex; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #ddd; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: var(--primary); }
@@ -58,11 +68,11 @@
 </div>
 
 <div id="view-scoreboard" class="view">
-  <div class="card header-card" style="justify-content: center; flex-direction: column;">
+  <div id="sb-timer-box" class="timer-banner" style="border-radius: 12px 12px 0 0; margin-bottom: 0;"></div>
+  <div class="card header-card" style="justify-content: center; flex-direction: column; border-radius: 0 0 12px 12px;">
     <h2 style="margin:0">Scoreboard</h2>
-    <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;"></div>
   </div>
-  <div class="grid">
+  <div class="grid" style="margin-top: 20px;">
     <div><h3 class="title-bar">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0"></div></div>
     <div><h3 class="title-bar">Börsen (Värde nu)</h3><div class="card" id="sb-market" style="padding:0"></div></div>
   </div>
@@ -160,7 +170,7 @@
     document.getElementById('sb-market').innerHTML = d.problems.map(p => `
       <div class="row"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(getMarketValue(p.id)).toLocaleString()}</strong></div>
     `).join('');
-    updateTimers(d.settings.endTime);
+    refreshTimerDisplay();
   }
 
   function renderApp() {
@@ -188,7 +198,7 @@
       });
     }
     document.getElementById('list').innerHTML = html;
-    updateTimers(d.settings.endTime);
+    refreshTimerDisplay();
   }
 
   async function update(pId, delta) {
@@ -200,13 +210,59 @@
     renderApp();
   }
 
-  function updateTimers(endTime) {
-    const remain = new Date(endTime).getTime() - Date.now();
-    const txt = remain > 0 ? "Tid kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" : "Tävlingen avslutad";
-    if(document.getElementById('sb-timer')) document.getElementById('sb-timer').innerText = txt;
-    if(document.getElementById('timer-display')) document.getElementById('timer-display').style.display = remain > 0 ? 'block' : 'none';
-    if(document.getElementById('timer-display')) document.getElementById('timer-display').innerText = txt;
+  // --- TIMER LOGIK ---
+  function refreshTimerDisplay() {
+    if (!cachedData || !cachedData.settings) return;
+    
+    // Antag att kalkylbladet har startTime i B3 och endTime i B4
+    const startTime = new Date(cachedData.settings.startTime || "2024-01-01 08:00").getTime();
+    const endTime = new Date(cachedData.settings.endTime).getTime();
+    const now = Date.now();
+    
+    let targetTime, label, color;
+    
+    if (now < startTime) {
+      // Fas 1: Väntar på start
+      targetTime = startTime - now;
+      label = "TID TILL START: ";
+      color = "#3498db"; // Blå
+    } else if (now < endTime) {
+      // Fas 2: Tävling pågår
+      targetTime = endTime - now;
+      label = "TID KVAR: ";
+      
+      // Färgkodning baserat på tid
+      const mins = targetTime / 60000;
+      if (mins > 60) color = "#27ae60"; // Grön (>1h)
+      else if (mins > 10) color = "#f1c40f"; // Gul (10-60 min)
+      else color = "#e74c3c"; // Röd (<10 min)
+    } else {
+      // Fas 3: Efterregistrering (visa t.ex. 1 timme efter slut)
+      targetTime = (endTime + 3600000) - now; 
+      label = "TID KVAR ATT EFTERREGISTRERA: ";
+      color = "#9b59b6"; // Lila
+      if (targetTime < 0) { label = "TÄVLINGEN AVSLUTAD"; targetTime = 0; }
+    }
+
+    const h = Math.floor(targetTime / 3600000);
+    const m = Math.floor((targetTime % 3600000) / 60000);
+    const s = Math.floor((targetTime % 60000) / 1000);
+    const timeStr = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    
+    const displayStr = targetTime > 0 ? label + timeStr : label;
+    
+    const elements = ['timer-display', 'sb-timer-box'];
+    elements.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerText = displayStr;
+        el.style.backgroundColor = color;
+      }
+    });
   }
+
+  // Kör timern varje sekund
+  setInterval(refreshTimerDisplay, 1000);
 
   function setTab(t) { 
     currentTab = t; 
