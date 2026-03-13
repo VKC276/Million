@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -9,35 +7,37 @@
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #f0f2f1; padding: 10px; color: #333; }
     .view { display: none; max-width: 480px; margin: 0 auto; }
-    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; }
-    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .card { background: white; padding: 18px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); position: relative; transition: opacity 0.2s; }
+    .btn { background: #27ae60; color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; }
     .timer-banner { background: #e67e22; color: white; text-align: center; padding: 12px; font-weight: bold; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
     .tab-btn { flex: 1; padding: 12px; border: none; background: #34495e; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
     .tab-btn.active { background: #27ae60; }
+    
+    /* Scoreboard Layout */
     #view-scoreboard { max-width: 1100px; }
     .sb-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 800px) { .sb-container { grid-template-columns: 1fr; } }
     .sb-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; font-size: 16px; }
     .sb-score { font-weight: bold; color: #27ae60; }
     .sb-title { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
-    .market-row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
+    
     .market-val { color: #27ae60; font-weight: bold; font-family: monospace; font-size: 18px; }
     .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; background: #f9f9f9; padding: 8px; border-radius: 30px; }
     .btn-s { width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 20px; font-weight: bold; cursor: pointer; background: #ddd; }
     .btn-s.plus { background: #27ae60; color: white; }
-    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; }
+    .p-val { position: absolute; top: 18px; right: 18px; color: #27ae60; font-weight: 800; font-size: 18px; text-align: right; }
   </style>
 </head>
 <body>
 
 <div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Miljontävlingen</strong><br>Ansluter till systemet...
+  <strong>Miljontävlingen</strong><br>Ansluter...
 </div>
 
 <div id="view-scoreboard" class="view">
     <div class="card" style="background:#2c3e50; color:white; text-align:center;">
         <h2 style="margin:0">Scoreboard</h2>
-        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">Uppdaterar...</div>
+        <div id="sb-timer" style="font-size:14px; opacity:0.8; margin-top:5px;">Laddar...</div>
     </div>
     <div class="sb-container">
         <div><h3 class="sb-title">Top 10 Klättrare</h3><div class="card" id="sb-list" style="padding:0; border-radius:0 0 12px 12px;"></div></div>
@@ -62,7 +62,11 @@
   const token = urlParams.get('token');
   const action = urlParams.get('action');
   
-  let cachedData = null, isProcessing = false, isTabActive = true, currentTab = 'scorecard';
+  let cachedData = null;
+  let isProcessing = false;
+  let isTabActive = true;
+  let currentTab = 'scorecard';
+  let requestQueue = [];
 
   function switchView(id) {
     document.querySelectorAll('.view').forEach(v => v.style.display = 'none');
@@ -70,15 +74,42 @@
     if(el) el.style.display = 'block';
   }
 
-  // Säkert hämta inställningar med dina exakta namn från arket
   function getSetting(key) {
     if (!cachedData || !cachedData.settings) return null;
-    return cachedData.settings[key] || cachedData.settings[key.toLowerCase()];
+    return cachedData.settings[key] || cachedData.settings[key.toLowerCase()] || null;
+  }
+
+  // --- MATEMATISK KÄRNA ---
+  function calculatePotentialValue(pId, userFactor) {
+    const d = cachedData;
+    const pot = getSetting('TOTAL_POT') || 1000000;
+    const pData = (d.problemValues && d.problemValues[pId]) ? d.problemValues[pId] : { totalShares: 0 };
+    
+    const myCurrentSends = (d.userSends && d.userSends[pId]) || 0;
+    const nextSendCount = myCurrentSends + 1;
+    
+    // Andelar: 1.0 för första, +0.1 för varje nästa (max 2.0)
+    const getBaseShare = (count) => count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1);
+    
+    const myPotentialShares = getBaseShare(nextSendCount) * userFactor;
+    const myOldShares = getBaseShare(myCurrentSends) * userFactor;
+    
+    // Om ingen klättrat alls
+    if (pData.totalShares <= 0) return pot;
+
+    // Ny total andel = Gammal total - Min gamla + Min nya
+    const newTotalShares = pData.totalShares - myOldShares + myPotentialShares;
+    
+    // Värdet för nästa send = (Mina nya totala andelar / Nya totala andelar) * Pot - (Mina gamla poäng)
+    // Men för enkelhetens skull visar vi vad hela din post blir värd om du gör en till:
+    const totalValueAfter = (myPotentialShares / newTotalShares) * pot;
+    const totalValueBefore = myOldShares > 0 ? (myOldShares / pData.totalShares) * pot : 0;
+    
+    return totalValueAfter - totalValueBefore;
   }
 
   async function call(params) {
     const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
-    if (!res.ok) throw new Error('API Fail');
     return res.json();
   }
 
@@ -87,32 +118,31 @@
       cachedData = await call({ action: 'scoreboard' });
       renderScoreboard();
       switchView('scoreboard');
-    } catch(e) { console.error("Scoreboard error:", e); }
+    } catch(e) { console.error(e); }
   }
 
   async function fetchData(load) {
-    if(!token) return;
+    if(!token || isProcessing) return;
     if(load) switchView('loading');
     try {
       cachedData = await call({ action: 'getAppData', token: token });
       render();
       switchView('app');
-    } catch(e) { console.error("Data error:", e); }
+    } catch(e) { console.error(e); }
   }
 
   function renderScoreboard() {
     const d = cachedData;
-    if(!d) return;
     const pot = getSetting('TOTAL_POT') || 1000000;
     
     document.getElementById('sb-list').innerHTML = (d.leaderboard || []).slice(0,10).map((u,i) => `
-      <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${(u.score || 0).toLocaleString()} p</span></div>
-    `).join('') || '<div class="sb-row">Väntar på resultat...</div>';
+      <div class="sb-row"><span>${i+1}. ${u.name}</span><span class="sb-score">${Math.round(u.score || 0).toLocaleString()} p</span></div>
+    `).join('') || '<div class="sb-row">Inga resultat</div>';
 
     const sorted = [...(d.problems || [])].map(p => {
-      const pData = d.problemValues ? d.problemValues[p.id] : null;
-      const v = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
-      return {...p, val: Math.round(v)};
+      // Marknadsvärde på SB = Vad nästa person med HCP 1.0 får
+      const val = calculatePotentialValue(p.id, 1.0);
+      return {...p, val: Math.round(val)};
     }).sort((a,b) => b.val - a.val);
 
     document.getElementById('sb-market-full').innerHTML = sorted.slice(0,10).map(p => `
@@ -124,7 +154,6 @@
   function render() {
     const d = cachedData;
     if(!d || !d.currentUser) return;
-    const pot = getSetting('TOTAL_POT') || 1000000;
     const list = document.getElementById('list');
     list.innerHTML = "";
 
@@ -133,69 +162,96 @@
     document.getElementById('header-box').innerHTML = `
       <div class="card" style="background:#2c3e50; color:white; display:flex; justify-content:space-between; align-items:center;">
         <div><small>HCP: ${(d.currentUser.factor || 1).toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div>
-        <div style="text-align:right;"><small>POÄNG</small><br><strong style="color:#2ecc71; font-size:20px;">${userScore.toLocaleString()}</strong></div>
+        <div style="text-align:right;"><small>DIN POÄNG</small><br><strong style="color:#2ecc71; font-size:20px;">${Math.round(userScore).toLocaleString()}</strong></div>
       </div>`;
 
-    if(currentTab === 'scorecard') {
+    if(currentTab === 'scorecard' || currentTab === 'market') {
       (d.problems || []).forEach(p => {
-        const count = (d.userSends && d.userSends[p.id]) || 0;
-        const pData = d.problemValues ? d.problemValues[p.id] : null;
-        const vps = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
-        const shares = (count <= 0 ? 0 : (count >= 10 ? 2.0 : 1.0 + (count - 1) * 0.1)) * (d.currentUser.factor || 1);
-        const pts = Math.round(shares * vps);
-        list.innerHTML += `<div class="card"><span class="p-val">${pts.toLocaleString()} p</span><strong>#${p.id} ${p.name}</strong>
-          <div class="stepper"><button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button><b style="font-size:20px;">${count}</b><button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button></div></div>`;
+        const myCount = (d.userSends && d.userSends[p.id]) || 0;
+        const nextVal = calculatePotentialValue(p.id, d.currentUser.factor);
+
+        if(currentTab === 'scorecard') {
+          list.innerHTML += `
+            <div class="card" id="card-${p.id}">
+              <div class="p-val">
+                <small style="font-size:10px; opacity:0.6; display:block;">NÄSTA SEND</small>
+                <span id="pts-${p.id}">+${Math.round(nextVal).toLocaleString()} p</span>
+              </div>
+              <strong>#${p.id} ${p.name}</strong>
+              <div class="stepper">
+                <button class="btn-s" onclick="updateScore('${p.id}',-1)">−</button>
+                <b style="font-size:24px;" id="count-${p.id}">${myCount}</b>
+                <button class="btn-s plus" onclick="updateScore('${p.id}',1)">+</button>
+              </div>
+            </div>`;
+        } else {
+          list.innerHTML += `
+            <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>#${p.id} ${p.name}</span>
+              <div style="text-align:right;"><span class="market-val">${Math.round(nextVal).toLocaleString()}</span><br><small style="opacity:0.5">Din nästa</small></div>
+            </div>`;
+        }
       });
-    } else if(currentTab === 'leaderboard') {
+    } else {
       (d.leaderboard || []).forEach((u,i) => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}"><span>${i+1}. ${u.name}</span><strong>${(u.score || 0).toLocaleString()} p</strong></div>`;
-      });
-    } else if(currentTab === 'market') {
-      [...(d.problems || [])].map(p => {
-        const pData = d.problemValues ? d.problemValues[p.id] : null;
-        const v = (pData && pData.totalShares > 0) ? pData.valuePerShare : pot;
-        return {...p, val: Math.round(v)};
-      }).sort((a,b) => b.val - a.val).forEach(p => {
-        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${p.val.toLocaleString()}</strong></div>`;
+        list.innerHTML += `<div class="card" style="display:flex; justify-content:space-between; ${u.name === d.currentUser.name ? 'border:2px solid #27ae60' : ''}"><span>${i+1}. ${u.name}</span><strong>${Math.round(u.score || 0).toLocaleString()} p</strong></div>`;
       });
     }
     updateTimers();
   }
 
   async function updateScore(pId, delta) {
-    if(isProcessing) return; isProcessing = true;
+    const countEl = document.getElementById(`count-${pId}`);
+    const ptsEl = document.getElementById(`pts-${pId}`);
+    const cardEl = document.getElementById(`card-${pId}`);
+    
+    let currentCount = parseInt(countEl.innerText);
+    let newCount = Math.max(0, currentCount + delta);
+    if(currentCount === newCount) return;
+
+    // Optimistisk uppdatering
+    countEl.innerText = newCount;
+    ptsEl.innerText = "...";
+    cardEl.style.opacity = "0.6";
+
+    requestQueue.push({ pId, action: delta > 0 ? 'registerSend' : 'removeSend' });
+    processQueue();
+  }
+
+  async function processQueue() {
+    if (isProcessing || requestQueue.length === 0) return;
+    isProcessing = true;
+    const task = requestQueue.shift();
     try {
-      cachedData = await call({ action: delta > 0 ? 'registerSend' : 'removeSend', token: token, pId: pId });
+      cachedData = await call({ action: task.action, token: token, pId: task.pId });
       render();
-    } catch(e) { alert("Kunde inte spara"); }
-    isProcessing = false;
+    } catch(e) {
+      alert("Kunde inte spara klicket.");
+      fetchData(false);
+    } finally {
+      isProcessing = false;
+      processQueue();
+    }
   }
 
   function updateTimers() {
     const endStr = getSetting('END_TIME');
     if(!endStr) return;
-    
     const end = new Date(endStr).getTime();
     const remain = end - Date.now();
-    
-    const txt = remain > 0 
-      ? "Kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" 
-      : "Tävlingen avslutad";
-      
+    const txt = remain > 0 ? "Kvar: " + Math.floor(remain/3600000) + "t " + Math.floor((remain%3600000)/60000) + "m" : "Avslutad";
     if(document.getElementById('sb-timer')) document.getElementById('sb-timer').innerText = txt;
     if(document.getElementById('timer-display')) document.getElementById('timer-display').innerText = txt;
   }
 
   window.onload = () => {
     if (action === 'scoreboard') { 
-      fetchScoreboard(); 
-      setInterval(() => isTabActive && fetchScoreboard(), 30000); 
+      fetchScoreboard(); setInterval(() => isTabActive && fetchScoreboard(), 30000); 
     } else if (token) { 
-      fetchData(true); 
-      setInterval(() => isTabActive && !isProcessing && fetchData(false), 60000); 
+      fetchData(true); setInterval(() => isTabActive && !isProcessing && requestQueue.length === 0 && fetchData(false), 60000); 
     } else { 
-      switchView('loading'); 
-      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk."; 
+      switchView('loading');
+      document.getElementById('view-loading').innerHTML = "Vänligen använd din personliga länk.";
     }
   };
 
