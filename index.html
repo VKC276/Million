@@ -88,6 +88,13 @@
       <div><label>Start:</label><input type="datetime-local" id="adm-start"></div>
       <div><label>Slut:</label><input type="datetime-local" id="adm-end"></div>
     </div>
+    <label>Tävlingsläge:</label>
+    <select id="adm-mode">
+      <option value="open_hcp">Öppen (Alla mot alla med HCP)</option>
+      <option value="open_no_hcp">Öppen (Alla mot alla utan HCP)</option>
+      <option value="class_hcp">Klassvis (Tävlan inom klass med HCP)</option>
+      <option value="class_no_hcp">Klassvis (Tävlan inom klass utan HCP)</option>
+    </select>
     <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
   </div>
   
@@ -143,6 +150,8 @@
   
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla", isCompClosed = false;
   let updateQueue = {}, localSends = {};
+  let scoreboardClassIndex = 0;
+  let scoreboardRotationTimer = null;
 
   function toLocalISO(dateStr) {
     if(!dateStr) return "";
@@ -198,6 +207,9 @@
     try {
       const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
       cachedData = await res.json();
+      if (cachedData.settings.compMode?.startsWith('class_') && selectedClass === "Alla" && cachedData.currentUser) {
+        selectedClass = cachedData.currentUser.userClass || "Allmän";
+      }
       action === 'scoreboard' ? renderScoreboard() : renderApp();
       switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
     } catch (e) { console.error(e); }
@@ -208,7 +220,9 @@
     const myCount = localSends[pId] || 0;
     const pVal = cachedData.problemValues[pId];
     if (myCount === 0 || !pVal) return 0;
-    return ((myCount * cachedData.currentUser.factor) / pVal.totalShares) * cachedData.settings.totalPot;
+    const mode = cachedData.settings.compMode || 'open_hcp';
+    const factor = mode.includes('no_hcp') ? 1.0 : cachedData.currentUser.factor;
+    return ((myCount * factor) / pVal.totalShares) * cachedData.settings.totalPot;
   }
 
   async function update(pId, delta) {
@@ -236,9 +250,25 @@
 
   function renderApp() {
     const d = cachedData; if (!d || !d.currentUser) return;
+    const mode = d.settings.compMode || 'open_hcp';
     d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    const myTotal = d.leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
-    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    
+    let displayLeaderboard = d.leaderboard.map(u => {
+        const factor = mode.includes('no_hcp') ? 1.0 : (u.factor || 1.0);
+        let score = 0;
+        d.problems.forEach(p => {
+            const sends = (u.id === d.currentUser.id) ? (localSends[p.id] || 0) : (u.sends?.[p.id] || 0);
+            const pVal = d.problemValues[p.id];
+            if (sends > 0 && pVal) score += ((sends * factor) / (pVal.totalShares || 1)) * d.settings.totalPot;
+        });
+        return { ...u, score };
+    }).sort((a,b) => b.score - a.score);
+
+    const myTotal = displayLeaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
+    const hcpText = mode.includes('no_hcp') ? "Ingen HCP" : `HCP: ${d.currentUser.factor.toFixed(2)}x`;
+    
+    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>${hcpText}</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+    
     let html = "";
     if (currentTab === 'scorecard') {
       d.problems.forEach(p => {
@@ -247,8 +277,8 @@
       });
     } else if (currentTab === 'leaderboard') {
       renderClassFilters();
-      const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
-      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id === d.currentUser.id ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${selectedClass === 'Alla' ? '('+(u.userClass||'Allmän')+')' : ''}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
+      const filtered = displayLeaderboard.filter(u => selectedClass === "Alla" || (u.userClass || "Allmän") === selectedClass);
+      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id === d.currentUser.id ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888; font-size:10px;">${(u.userClass||'Allmän')}</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
     } else {
       d.problems.forEach(p => { html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()} p</strong></div>`; });
     }
@@ -258,8 +288,66 @@
 
   function renderScoreboard() {
     const d = cachedData;
-    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name}</span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
-    document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3><div class="column-split" style="padding:10px;">' + d.problems.map(p => `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong></div>`).join('') + '</div>';
+    if (!d) return;
+    const mode = d.settings.compMode || 'open_hcp';
+    const isClassMode = mode.indexOf('class_') === 0;
+
+    let displayLeaderboard = d.leaderboard.map(u => {
+        const factor = mode.includes('no_hcp') ? 1.0 : (u.factor || 1.0);
+        let score = 0;
+        d.problems.forEach(p => {
+            const sends = u.sends?.[p.id] || 0;
+            const pVal = d.problemValues[p.id];
+            if (sends > 0 && pVal) score += ((sends * factor) / (pVal.totalShares || 1)) * d.settings.totalPot;
+        });
+        return { ...u, score };
+    }).sort((a,b) => b.score - a.score);
+
+    let titleText = "TOPPLISTA (TOTAL)";
+    let listToShow = displayLeaderboard;
+
+    if (isClassMode) {
+      const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+      if (scoreboardClassIndex >= classes.length) scoreboardClassIndex = 0;
+      const currentClassName = classes[scoreboardClassIndex];
+      titleText = `TOPPLISTA: ${currentClassName.toUpperCase()}`;
+      listToShow = displayLeaderboard.filter(u => (u.userClass || "Allmän") === currentClassName);
+
+      if (!scoreboardRotationTimer) {
+        scoreboardRotationTimer = setInterval(() => {
+          scoreboardClassIndex++;
+          renderScoreboard();
+        }, 10000); 
+      }
+    } else {
+      if (scoreboardRotationTimer) {
+        clearInterval(scoreboardRotationTimer);
+        scoreboardRotationTimer = null;
+      }
+    }
+
+    document.getElementById('sb-list').innerHTML = `
+      <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px; display:flex; justify-content:space-between;">
+        <span>${titleText}</span>
+        <span>${isClassMode ? (scoreboardClassIndex + 1) + '/' + [...new Set(d.leaderboard.map(u => u.userClass))].length : ''}</span>
+      </h3>` + 
+      listToShow.slice(0, 25).map((u,i) => `
+        <div class="row">
+          <span class="p-num">${i+1}.</span>
+          <span class="p-name">${u.name}</span>
+          <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
+        </div>`).join('');
+
+    document.getElementById('sb-market').innerHTML = `
+      <h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3>
+      <div class="column-split" style="padding:10px;">
+        ${d.problems.map(p => `
+          <div class="row">
+            <span class="p-num">#${p.id}</span>
+            <span class="p-name">${p.name}</span>
+            <strong class="market-val">${Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1.0)).toLocaleString()}</strong>
+          </div>`).join('')}
+      </div>`;
     refreshTimer();
   }
 
@@ -291,9 +379,9 @@
     document.getElementById('adm-ref').value = data.settings.refHeight;
     document.getElementById('adm-start').value = toLocalISO(data.settings.start);
     document.getElementById('adm-end').value = toLocalISO(data.settings.end);
+    document.getElementById('adm-mode').value = data.settings.compMode || 'open_hcp';
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
     document.getElementById('admin-class-list').innerHTML = data.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass(this, '${c}')">Radera</button></div>`).join('');
-    
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
       <div class="row" style="padding: 12px;">
         <div style="flex:1; overflow:hidden; margin-right: 10px;">
@@ -301,25 +389,30 @@
           <small style="color:#888;">${u.email || 'Ingen e-post'}</small>
         </div>
         <div style="display:flex; gap:5px;">
-          <button class="btn-accent-mini" title="Skicka e-post med länk igen" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button>
+          <button class="btn-accent-mini" title="Skicka länk" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button>
           <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
           <button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
         </div>
       </div>`).join('');
   }
 
+  async function saveSettings() { 
+    const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
+    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value, compMode: document.getElementById('adm-mode').value };
+    try {
+      const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
+      renderAdmin(await res.json()); btn.innerText = "Sparat!"; btn.style.background = "#2ecc71";
+      setTimeout(() => { btn.innerText = "Spara"; btn.style.background = "var(--dark)"; }, 2000);
+    } catch (e) { btn.innerText = "Fel!"; }
+  }
+
   async function resendWelcomeEmail(btn, name, email, length, userClass) {
     if(!email || email === 'Ingen e-post') { alert("Användaren saknar e-postadress."); return; }
-    const originalText = btn.innerText;
-    btn.innerText = "...";
+    const originalText = btn.innerText; btn.innerText = "...";
     try {
-      // Vi anropar requestLogin på nytt med samma uppgifter, backenden skickar då ut länken igen
       const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${length}&userClass=${encodeURIComponent(userClass)}`);
       const data = await res.json();
-      if(data.token) {
-        btn.innerText = "Skickat!"; btn.style.background = "#2ecc71";
-        setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--accent)"; }, 2000);
-      }
+      if(data.token) { btn.innerText = "Skickat!"; btn.style.background = "#2ecc71"; setTimeout(() => { btn.innerText = originalText; btn.style.background = "var(--accent)"; }, 2000); }
     } catch (e) { btn.innerText = "Fel!"; }
   }
 
@@ -335,16 +428,6 @@
   async function deleteClass(btn, className) {
     if(!confirm("Radera klassen '" + className + "'?")) return; btn.innerText = "...";
     try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(className)}`); renderAdmin(await res.json()); } catch (e) { btn.innerText = "Fel"; }
-  }
-
-  async function saveSettings() { 
-    const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
-    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value };
-    try {
-      const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
-      renderAdmin(await res.json()); btn.innerText = "Sparat!"; btn.style.background = "#2ecc71";
-      setTimeout(() => { btn.innerText = "Spara"; btn.style.background = "var(--dark)"; }, 2000);
-    } catch (e) { btn.innerText = "Fel!"; }
   }
 
   async function addProblem() {
@@ -367,20 +450,19 @@
   }
 
   async function deleteUser(btn, userId) {
-    if(!confirm("Ta bort användaren helt ur systemet? Detta går inte att ångra.")) return; btn.innerText = "...";
+    if(!confirm("Ta bort användaren helt ur systemet?")) return; btn.innerText = "...";
     try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); renderAdmin(await res.json()); } catch (e) { btn.innerText = "Fel"; }
   }
 
   async function confirmResetAll() {
-    if(!confirm("Radera ALLT (användare och bestigningar)?")) return;
+    if(!confirm("Radera ALLT?")) return;
     const btn = document.getElementById('btn-reset-all'); btn.innerText = "Nollställer...";
     try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); renderAdmin(await res.json()); btn.innerText = "KLART!"; setTimeout(() => { btn.innerText = "NOLLSTÄLL ALLT"; }, 3000); } catch (e) { btn.innerText = "Fel!"; }
   }
 
   async function registerUser() {
     const btn = document.getElementById('btn-do-reg'), name = document.getElementById('reg-name').value, email = document.getElementById('reg-email').value, height = document.getElementById('reg-height').value, userClass = document.getElementById('reg-class').value;
-    if(!name || !email) { btn.innerText = "Fyll i namn/epost"; btn.style.background = "var(--danger)"; setTimeout(()=> {btn.innerText="SKAPA PROFIL / SKICKA LÄNK"; btn.style.background="var(--primary)"}, 2000); return; }
-    btn.innerText = "Skapar profil...";
+    if(!name || !email) return; btn.innerText = "Skapar...";
     try {
       const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${height}&userClass=${encodeURIComponent(userClass)}`);
       const data = await res.json();
@@ -388,7 +470,7 @@
         document.getElementById('reg-form-container').style.display = 'none'; document.getElementById('reg-result').style.display = 'block';
         document.getElementById('reg-token-link').value = window.location.origin + window.location.pathname + "?token=" + data.token;
       }
-    } catch (e) { btn.innerText = "Fel! Försök igen"; }
+    } catch (e) { btn.innerText = "Fel!"; }
   }
 
   function setTab(t) { 
