@@ -150,6 +150,8 @@
   
   let adminPwd = "", cachedData = null, currentTab = 'scorecard', selectedClass = "Alla", isCompClosed = false;
   let updateQueue = {}, localSends = {};
+  let finalFetchDone = false;
+  let lastMinuteInterval = null;
 
   function toLocalISO(dateStr) {
     if(!dateStr) return "";
@@ -228,16 +230,60 @@
 
   function refreshTimer() {
     if (!cachedData) return;
-    const start = new Date(cachedData.settings.startTime).getTime(), end = new Date(cachedData.settings.endTime).getTime(), now = Date.now();
+    const end = new Date(cachedData.settings.endTime).getTime();
+    const gracePeriod = 600000; 
+    const finalEnd = end + gracePeriod;
+    const now = Date.now();
+    const timeLeft = finalEnd - now;
+    
     let label = "", targetTime = 0, bgColor = "var(--timer-bg)";
     isCompClosed = false;
-    if (now < start) { label = "Tid till start: "; targetTime = start - now; }
-    else if (now < end) { label = "Tävling pågår: "; targetTime = end - now; bgColor = "var(--primary)"; }
-    else if (now < end + 600000) { label = "Efterregistrering: "; targetTime = (end + 600000) - now; bgColor = "var(--accent)"; }
-    else { label = "Tävling avslutad!"; targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true; }
+
+    if (now < new Date(cachedData.settings.startTime).getTime()) {
+      label = "Tid till start: ";
+      targetTime = new Date(cachedData.settings.startTime).getTime() - now;
+    } else if (now < finalEnd) {
+      targetTime = timeLeft;
+      if (now < end) {
+        label = "Tävling pågår: ";
+        bgColor = "var(--primary)";
+      } else {
+        label = "Efterregistrering: ";
+        bgColor = "var(--accent)";
+      }
+
+      if (timeLeft < 60000 && !lastMinuteInterval) {
+        lastMinuteInterval = setInterval(() => {
+          if (!isCompClosed) loadData(false);
+        }, 10000);
+      }
+    } else {
+      label = "Tävling avslutad!";
+      targetTime = 0;
+      bgColor = "var(--danger)";
+      isCompClosed = true;
+
+      if (lastMinuteInterval) {
+        clearInterval(lastMinuteInterval);
+        lastMinuteInterval = null;
+      }
+
+      if (!finalFetchDone) {
+        finalFetchDone = true;
+        setTimeout(() => { loadData(false); }, 2000);
+      }
+    }
+
     const h = Math.floor(targetTime/3600000), m = Math.floor((targetTime%3600000)/60000), s = Math.floor((targetTime%60000)/1000);
     const timeStr = targetTime > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "";
-    document.querySelectorAll('.timer-banner').forEach(el => { el.innerText = label + timeStr; el.style.background = bgColor; });
+    
+    document.querySelectorAll('.timer-banner').forEach(el => { 
+      el.innerText = label + timeStr; 
+      el.style.background = bgColor;
+      if (targetTime < 10000 && targetTime > 0) {
+        el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000';
+      }
+    });
   }
 
   async function update(pId, delta) {
@@ -323,7 +369,18 @@
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (action === 'scoreboard' || token) { loadData(true); setInterval(refreshTimer, 1000); setInterval(() => { if (!document.hidden) loadData(false); }, 60000); }
+    else if (action === 'scoreboard' || token) { 
+      loadData(true); 
+      setInterval(refreshTimer, 1000); 
+      setInterval(() => { 
+        if (!cachedData) return;
+        const finalEnd = new Date(cachedData.settings.endTime).getTime() + 600000;
+        const timeLeft = finalEnd - Date.now();
+        if (!document.hidden && !isCompClosed && timeLeft > 60000) {
+          loadData(false);
+        }
+      }, 60000); 
+    }
     else { switchView('register'); loadClassesForRegistration(); }
   };
 </script>
