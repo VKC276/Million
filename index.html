@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen</title>
+  <title>Miljontävlingen - Admin</title>
   <style>
     :root { 
       --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
@@ -24,14 +24,15 @@
     .btn-s:disabled { opacity: 0.2; cursor: not-allowed; }
     .market-val { color: var(--primary); font-weight: bold; }
     input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-    .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: opacity 0.2s; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 5px; transition: all 0.2s; }
+    .btn:disabled { opacity: 0.8; cursor: wait; }
     #view-scoreboard, #view-admin { max-width: 1000px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     .row { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; align-items: center; }
     .admin-btn-group { display: flex; gap: 5px; }
-    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; }
+    .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    .btn-mini:disabled { opacity: 0.8; cursor: wait; }
     .btn-mini.danger { color: var(--danger); border-color: var(--danger); }
     .title-bar { background: #34495e; color: white; padding: 12px; border-radius: 12px 12px 0 0; margin: 0; font-size: 14px; text-align: center; text-transform: uppercase; }
   </style>
@@ -60,7 +61,7 @@
     <div class="card">
       <h3>Problem</h3>
       <input type="text" id="new-p-id" placeholder="ID"><input type="text" id="new-p-name" placeholder="Namn">
-      <button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till</button>
+      <button class="btn" id="btn-add-problem" onclick="addProblem()">Lägg till problem</button>
       <div id="admin-problem-list" style="margin-top:15px"></div>
     </div>
     <div class="card">
@@ -104,34 +105,42 @@
     if(el) el.style.display = 'block';
   }
 
-  // --- MATEMATIK ---
-  function getProblemScore(pId) {
-    const d = cachedData;
-    const myCount = d.userSends?.[pId] || 0;
-    if (myCount === 0) return 0;
-    const pVal = d.problemValues[pId];
-    if (pVal && pVal.totalShares > 0) {
-      const myWeighted = myCount * d.currentUser.factor;
-      return (myWeighted / pVal.totalShares) * d.settings.totalPot;
-    }
-    return d.settings.totalPot;
-  }
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
 
-  function getMarketValue(pId) {
-    const d = cachedData;
-    const totalShares = d.problemValues[pId]?.totalShares || 0;
-    return d.settings.totalPot / (totalShares + 1.0);
-  }
-
-  // --- ADMIN LOGIK ---
+  // --- OPTIMERAD ADMIN LOGIK (TYDLIG FEEDBACK) ---
   async function adminAction(params, btn, loadingText) {
     const originalText = btn ? btn.innerText : "";
-    if(btn) { btn.innerText = loadingText || "Arbetar..."; btn.disabled = true; }
+    const originalBg = btn ? btn.style.backgroundColor : "";
+    
+    if(btn) { 
+      btn.innerText = loadingText || "Arbetar..."; 
+      btn.disabled = true; 
+    }
+    
     try {
       const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`);
       const data = await res.json();
-      if (data.error) { alert("Fel: " + data.error); } else { renderAdmin(data); }
-    } catch (e) { alert("Anslutningsfel"); } finally { if(btn) { btn.innerText = originalText; btn.disabled = false; } }
+      
+      if (data.error) { 
+        alert("Fel: " + data.error); 
+        if(btn) btn.innerText = originalText;
+      } else { 
+        if(btn) {
+          btn.innerText = "Klart!";
+          btn.style.backgroundColor = "#27ae60";
+        }
+        renderAdmin(data);
+        await sleep(800); // Låt användaren se "Klart!"
+      }
+    } catch (e) { 
+      alert("Anslutningsfel"); 
+    } finally { 
+      if(btn) { 
+        btn.innerText = originalText; 
+        btn.style.backgroundColor = originalBg;
+        btn.disabled = false; 
+      }
+    }
   }
 
   async function loadAdmin() {
@@ -153,18 +162,34 @@
       if(data.settings.start) document.getElementById('adm-start').value = new Date(data.settings.start).toISOString().slice(0,16);
       if(data.settings.end) document.getElementById('adm-end').value = new Date(data.settings.end).toISOString().slice(0,16);
     }
+    
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `
-      <div class="row"><span><strong>#${p.id}</strong> ${p.name}</span><button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>
+      <div class="row">
+        <span><strong>#${p.id}</strong> ${p.name}</span>
+        <button class="btn-mini danger" onclick="deleteProblem(this, '${p.id}')">Radera</button>
+      </div>
     `).join('');
+    
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
-      <div class="row"><span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
-        <div class="admin-btn-group"><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button><button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Radera</button></div></div>
+      <div class="row">
+        <span style="font-size:13px"><strong>${u.name}</strong><br><small>${u.email}</small></span>
+        <div class="admin-btn-group">
+          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
+          <button class="btn-mini danger" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
+        </div>
+      </div>
     `).join('');
   }
 
   async function saveSettings() {
     const btn = document.getElementById('btn-save-settings');
-    await adminAction({ action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value }, btn, "Sparar...");
+    await adminAction({
+      action: 'updateSettings',
+      pot: document.getElementById('adm-pot').value,
+      refHeight: document.getElementById('adm-ref').value,
+      start: document.getElementById('adm-start').value,
+      end: document.getElementById('adm-end').value
+    }, btn, "Sparar...");
   }
 
   async function addProblem() {
@@ -178,9 +203,12 @@
   async function deleteProblem(btn, id) { if(confirm("Radera problem?")) await adminAction({ action: 'deleteProblem', pId: id }, btn, "Raderar..."); }
   async function resetUser(btn, id) { if(confirm("Nollställ användare?")) await adminAction({ action: 'resetUser', userId: id }, btn, "Nollställer..."); }
   async function deleteUser(btn, id) { if(confirm("Radera användare helt?")) await adminAction({ action: 'deleteUser', userId: id }, btn, "Tar bort..."); }
-  async function confirmResetAll() { if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, document.getElementById('btn-reset-all'), "Återställer..."); }
+  async function confirmResetAll() { 
+    const btn = document.getElementById('btn-reset-all');
+    if(confirm("RADERA ALLT? Detta nollställer tävlingen helt.")) await adminAction({ action: 'resetEverything' }, btn, "Nollställer allt..."); 
+  }
 
-  // --- CORE LOGIK ---
+  // --- CORE LOGIK (TÄVLANDE) ---
   async function loadData(showLoading) {
     if(isProcessing) return;
     if(showLoading) switchView('loading');
@@ -205,12 +233,9 @@
     if (!d || !d.currentUser) return;
     const myTotal = d.leaderboard.find(u => u.name === d.currentUser.name)?.score || 0;
     
-    // Tidslogik för låsning
-    const now = Date.now();
-    const startTime = new Date(d.settings.startTime).getTime();
-    const endTime = new Date(d.settings.endTime).getTime();
-    const graceEnd = endTime + 3600000;
-    const isLocked = now < startTime || now > graceEnd;
+    const now = Date.now(), start = new Date(d.settings.startTime).getTime(), end = new Date(d.settings.endTime).getTime();
+    const graceEnd = end + 3600000;
+    const isLocked = now < start || now > graceEnd;
 
     document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
     
@@ -230,9 +255,7 @@
   }
 
   async function update(pId, delta) {
-    const now = Date.now();
-    const start = new Date(cachedData.settings.startTime).getTime();
-    const grace = new Date(cachedData.settings.endTime).getTime() + 3600000;
+    const now = Date.now(), start = new Date(cachedData.settings.startTime).getTime(), grace = new Date(cachedData.settings.endTime).getTime() + 3600000;
     if (now < start || now > grace) { alert("Tävlingen är stängd."); return; }
 
     isProcessing = true;
@@ -255,7 +278,6 @@
     const str = label + (target > 0 ? `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "");
     ['timer-display', 'sb-timer-box'].forEach(id => { const el = document.getElementById(id); if(el) { el.innerText = str; el.style.backgroundColor = color; } });
     
-    // Triggar om-rendering när tävlingen startar/slutar för att låsa upp/låsa knappar
     if (Math.abs(now - start) < 2000 || Math.abs(now - (end + 3600000)) < 2000) { if(token) renderApp(); }
   }
 
