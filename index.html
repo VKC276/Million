@@ -308,52 +308,52 @@ function showCurrentClassInCarousel() {
   const currentClass = classes[currentCarouselClassIndex];
   const pot = d.settings.totalPot || 1000000;
 
-  // Renderings-hjälp för att hålla koden ren
-  const createTableHtml = (title, color, contentHtml) => `
-    <div style="background:white; border:1px solid #ddd; border-radius:8px; overflow:hidden; animation: fadeIn 0.5s; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
-      <div style="background:${color}; color:white; padding:15px; font-size:18px; font-weight:bold; text-align:center; text-transform:uppercase;">
-        ${title}: ${currentClass}
-      </div>
-      <div style="display:flex; flex-direction:column;">
-        ${contentHtml}
-      </div>
-    </div>
-  `;
-
-  // --- TOPPLISTA ---
+  // --- TOPPLISTA FÖR AKTUELL KLASS ---
   const classFiltered = d.leaderboard
     .filter(u => u.userClass === currentClass)
     .slice(0, 15);
 
-  const topListHtml = classFiltered.length > 0 ? classFiltered.map((u, i) => `
-    <div style="display:flex; justify-content:space-between; padding:12px 15px; border-bottom:1px solid #eee; background:${i < 3 ? '#f9fdf9' : 'white'};">
-      <span style="font-weight:bold; color:#888; width:30px;">${i+1}.</span>
-      <span style="flex:1; font-weight:500;">${u.name}</span>
-      <strong style="color:var(--primary);">${Math.round(u.score).toLocaleString()} p</strong>
-    </div>
-  `).join('') : '<div style="padding:20px; text-align:center; color:#999;">Inga resultat än</div>';
-
-  document.getElementById('sb-list').innerHTML = createTableHtml('Topplista', 'var(--dark)', topListHtml);
-
-  // --- BÖRSEN ---
-  const marketHtml = d.problems.map(p => {
-    const pVal = d.problemValues[p.id];
-    const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
-    const val = shares > 0 ? Math.round(pot / shares) : pot;
-    
-    return `
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 15px; border-bottom:1px solid #eee;">
-        <div style="display:flex; align-items:center;">
-          <span style="font-weight:bold; color:#888; width:40px;">#${p.id}</span>
-          <span style="font-weight:500;">${p.name}</span>
-        </div>
-        <strong style="color:var(--primary); font-family:monospace; font-size:18px;">${val.toLocaleString()} <small style="font-weight:normal; font-size:12px;">p</small></strong>
+  document.getElementById('sb-list').innerHTML = `
+    <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
+      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
+        TOPPLISTA: ${currentClass.toUpperCase()}
+      </h3>
+      <div style="padding:5px;">
+        ${classFiltered.map((u, i) => `
+          <div class="row">
+            <span class="p-num">${i+1}.</span>
+            <span class="p-name">${u.name}</span>
+            <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
+          </div>
+        `).join('')}
+        ${classFiltered.length === 0 ? '<div class="row">Inga resultat än.</div>' : ''}
       </div>
-    `;
-  }).join('');
+    </div>`;
 
-  document.getElementById('sb-market').innerHTML = createTableHtml('Börsen', 'var(--timer-bg)', marketHtml) + 
-    `<div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">Klass ${currentCarouselClassIndex + 1} av ${classes.length}</div>`;
+  // --- BÖRSEN FÖR AKTUELL KLASS (MED KOLUMNER) ---
+  document.getElementById('sb-market').innerHTML = `
+    <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
+      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
+        BÖRSEN: ${currentClass.toUpperCase()}
+      </h3>
+      <div class="column-split" style="padding:10px;">
+        ${d.problems.map(p => {
+          const pVal = d.problemValues[p.id];
+          const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
+          const val = shares > 0 ? Math.round(pot / shares) : pot; 
+          
+          return `
+            <div class="row">
+              <span class="p-num">#${p.id}</span>
+              <span class="p-name">${p.name}</span>
+              <strong class="market-val">${val.toLocaleString()}</strong>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">
+      Klass ${currentCarouselClassIndex + 1} av ${classes.length}
+    </div>`;
 }
 
   function refreshTimer() {
