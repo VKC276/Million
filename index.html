@@ -99,10 +99,10 @@
     </div>
     <label>Tävlingsläge:</label>
     <select id="adm-mode">
-      <option value="open_hcp">Öppen (HCP)</option>
-      <option value="open_no_hcp">Öppen (Ingen HCP)</option>
-      <option value="class_hcp">Klassvis (HCP)</option>
-      <option value="class_no_hcp">Klassvis (Ingen HCP)</option>
+      <option value="open_hcp">Alla mot alla med handikapp</option>
+      <option value="open_no_hcp">Alla mot alla utan handikapp</option>
+      <option value="class_hcp">Klassvis tävling med handikapp</option>
+      <option value="class_no_hcp">Klassvis tävling utan handikapp</option>
     </select>
     <button class="btn" style="background:var(--dark)" id="btn-save-settings" onclick="saveSettings()">Spara</button>
   </div>
@@ -403,7 +403,7 @@
       if(data.settings && data.settings.compMode) {
         const modeMap = {
           'open_hcp': 'Alla mot alla med handikapp',
-          'open_no_hcp': 'Alla mot alla utan handikapp)',
+          'open_no_hcp': 'Alla mot alla utan handikapp',
           'class_hcp': 'Klassvis tävling med handikapp',
           'class_no_hcp': 'Klassvis tävling utan handikapp'
         };
