@@ -370,20 +370,49 @@
     document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row" style="padding: 12px;"><div style="flex:1; overflow:hidden; margin-right: 10px;"><strong>${u.name}</strong> <small>(${u.userClass})</small><br><small style="color:#888;">${u.email || 'Ingen e-post'}</small></div><div style="display:flex; gap:5px;"><button class="btn-accent-mini" style="background:#3498db" onclick="adminChangeClass('${u.email}', '${u.name}', '${u.length}', '${u.userClass}')">KLASS</button><button class="btn-accent-mini" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button><button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button></div></div>`).join('');
   }
 
-  function adminChangeClass(email, name, length, currentClass) {
-    const options = cachedData.classes.map(c => `<option value="${c}" ${c === currentClass ? 'selected' : ''}>${c}</option>`).join('');
-    const modal = document.createElement('div');
-    modal.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
-    modal.innerHTML = `<div class="card" style="width:100%; max-width:400px; background:white; padding:20px;"><h3 style="margin-top:0;">Byt klass för ${name}</h3><select id="adm-new-cls">${options}</select><div style="display:flex; gap:10px;"><button id="conf-cls" class="btn" style="flex:2;">UPPDATERA</button><button id="canc-cls" class="btn" style="flex:1; background:#95a5a6;">AVBRYT</button></div></div>`;
-    document.body.appendChild(modal);
-    modal.querySelector('#conf-cls').onclick = () => {
-      const newClass = modal.querySelector('#adm-new-cls').value;
-      modal.remove();
-      fetch(`${API_URL}?action=requestLogin&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&length=${length}&userClass=${encodeURIComponent(newClass)}`)
-        .then(r => r.json()).then(() => { alert("Klass uppdaterad!"); loadAdmin(); }).catch(err => alert("Fel: " + err));
-    };
-    modal.querySelector('#canc-cls').onclick = () => modal.remove();
-  }
+ function adminChangeClass(email, name, length, currentClass) {
+  const options = cachedData.classes.map(c => 
+    `<option value="${c}" ${c === currentClass ? 'selected' : ''}>${c}</option>`
+  ).join('');
+
+  const modal = document.createElement('div');
+  modal.style = "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
+  modal.innerHTML = `
+    <div class="card" style="width:100%; max-width:400px; background:white; padding:20px;">
+      <h3 style="margin-top:0;">Byt klass för ${name}</h3>
+      <select id="adm-new-cls">${options}</select>
+      <div style="display:flex; gap:10px;">
+        <button id="conf-cls" class="btn" style="flex:2;">UPPDATERA</button>
+        <button id="canc-cls" class="btn" style="flex:1; background:#95a5a6;">AVBRYT</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const confirmBtn = modal.querySelector('#conf-cls');
+  
+  confirmBtn.onclick = () => {
+    const newClass = modal.querySelector('#adm-new-cls').value;
+    
+    // Ändra knappens text för att visa att något händer
+    confirmBtn.innerText = "Uppdaterar...";
+    confirmBtn.disabled = true;
+    confirmBtn.style.opacity = "0.5";
+
+    fetch(`${API_URL}?action=requestLogin&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}&length=${length}&userClass=${encodeURIComponent(newClass)}`)
+      .then(r => r.json())
+      .then(() => { 
+        modal.remove(); // Stäng rutan direkt när det är klart
+        loadAdmin();    // Uppdatera listan så du ser ändringen i parentesen
+      })
+      .catch(err => {
+        alert("Fel vid uppdatering: " + err);
+        modal.remove();
+      });
+  };
+
+  modal.querySelector('#canc-cls').onclick = () => modal.remove();
+}
 
   async function saveSettings() { 
     const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
