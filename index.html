@@ -50,6 +50,14 @@
     .btn-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: white; cursor: pointer; }
     .btn-accent-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: var(--accent); color: white; cursor: pointer; border: none; }
     .btn-danger-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ffebee; color: var(--danger); background: white; cursor: pointer; }
+
+    /* NYTT: Resultatvyn */
+    #view-results { max-width: 800px; }
+    @media print {
+      .btn, .tab-nav, .timer-banner { display: none !important; }
+      .card { box-shadow: none; border: 1px solid #eee; break-inside: avoid; }
+      body { background: white; padding: 0; }
+    }
   </style>
 </head>
 <body>
@@ -115,7 +123,8 @@
   </div>
 
   <div class="card" style="margin-top:20px;">
-    <h3>Deltagare</h3>
+    <h3>Deltagare & Verktyg</h3>
+    <button class="btn" style="background:#2980b9; margin-bottom:15px;" onclick="downloadCSV()">LADDA NER RESULTAT (CSV)</button>
     <div id="admin-user-list"></div>
     <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
     <button class="btn" style="background:black;" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
@@ -128,6 +137,15 @@
     <div><div class="card" id="sb-list" style="padding:0"></div></div>
     <div><div class="card" id="sb-market" style="padding:0"></div></div>
   </div>
+</div>
+
+<div id="view-results" class="view">
+  <div class="card" style="text-align:center; background:var(--dark); color:white; border:none;">
+    <h2 style="margin:0">Slutresultat</h2>
+    <p style="margin:5px 0 0 0; opacity:0.8;">Miljontävlingen</p>
+  </div>
+  <div id="results-container"></div>
+  <button class="btn" style="margin-top:10px; background:var(--dark);" onclick="window.print()">SKRIV UT / PDF</button>
 </div>
 
 <div id="view-app" class="view">
@@ -174,13 +192,61 @@
   async function loadData(showLoading) {
     const activeToken = token || new URLSearchParams(window.location.search).get('token');
     if(showLoading) switchView('loading');
-    const params = action === 'scoreboard' ? {action:'scoreboard'} : {action:'getAppData', token:activeToken};
+    const params = (action === 'scoreboard' || action === 'results') ? {action:'scoreboard'} : {action:'getAppData', token:activeToken};
     try {
       const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
       cachedData = await res.json();
-      action === 'scoreboard' ? renderScoreboard() : renderApp();
-      switchView(action === 'scoreboard' ? 'scoreboard' : 'app');
+      
+      if (action === 'results') {
+        renderResults();
+        switchView('results');
+      } else if (action === 'scoreboard') {
+        renderScoreboard();
+        switchView('scoreboard');
+      } else {
+        renderApp();
+        switchView('app');
+      }
     } catch (e) { console.error(e); }
+  }
+
+  // NYTT: Funktion för action=results
+  function renderResults() {
+    const d = cachedData; if (!d || !d.leaderboard) return;
+    const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+    let html = "";
+    classes.forEach(className => {
+      const classUsers = d.leaderboard.filter(u => u.userClass === className);
+      html += `<div class="card" style="padding:0; overflow:hidden; margin-top:20px;">
+        <div style="background:var(--primary); color:white; padding:12px; font-weight:bold;">Klass: ${className}</div>
+        <div style="padding:5px;">`;
+      classUsers.forEach((u, i) => {
+        html += `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name}</span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`;
+      });
+      html += `</div></div>`;
+    });
+    document.getElementById('results-container').innerHTML = html;
+  }
+
+  // NYTT: Förbättrad CSV-export
+  function downloadCSV() {
+    if (!cachedData || !cachedData.leaderboard) return alert("Ingen data laddad. Ladda om sidan.");
+    let csv = "data:text/csv;charset=utf-8,\uFEFFKlass;Placering;Namn;Poäng;HCP\n";
+    const sorted = [...cachedData.leaderboard].sort((a,b) => {
+      if(a.userClass !== b.userClass) return a.userClass.localeCompare(b.userClass);
+      return b.score - a.score;
+    });
+    let curCls = "", pos = 0;
+    sorted.forEach(u => {
+      if(u.userClass !== curCls) { curCls = u.userClass; pos = 1; } else { pos++; }
+      csv += `"${u.userClass}";${pos};"${u.name}";${Math.round(u.score)};${u.factor.toFixed(2)}\n`;
+    });
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csv));
+    link.setAttribute("download", "resultat_miljontavlingen.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   function renderApp() {
@@ -251,27 +317,14 @@
         label = "Efterregistrering: ";
         bgColor = "var(--accent)";
       }
-
       if (timeLeft < 60000 && !lastMinuteInterval) {
-        lastMinuteInterval = setInterval(() => {
-          if (!isCompClosed) loadData(false);
-        }, 10000);
+        lastMinuteInterval = setInterval(() => { if (!isCompClosed) loadData(false); }, 10000);
       }
     } else {
       label = "Tävling avslutad!";
-      targetTime = 0;
-      bgColor = "var(--danger)";
-      isCompClosed = true;
-
-      if (lastMinuteInterval) {
-        clearInterval(lastMinuteInterval);
-        lastMinuteInterval = null;
-      }
-
-      if (!finalFetchDone) {
-        finalFetchDone = true;
-        setTimeout(() => { loadData(false); }, 2000);
-      }
+      targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true;
+      if (lastMinuteInterval) { clearInterval(lastMinuteInterval); lastMinuteInterval = null; }
+      if (!finalFetchDone) { finalFetchDone = true; setTimeout(() => { loadData(false); }, 2000); }
     }
 
     const h = Math.floor(targetTime/3600000), m = Math.floor((targetTime%3600000)/60000), s = Math.floor((targetTime%60000)/1000);
@@ -280,9 +333,7 @@
     document.querySelectorAll('.timer-banner').forEach(el => { 
       el.innerText = label + timeStr; 
       el.style.background = bgColor;
-      if (targetTime < 10000 && targetTime > 0) {
-        el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000';
-      }
+      if (targetTime < 10000 && targetTime > 0) { el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000'; }
     });
   }
 
@@ -305,7 +356,8 @@
     switchView('loading');
     try {
       const res = await fetch(`${API_URL}?action=getAdminFull&pwd=${adminPwd}`);
-      renderAdmin(await res.json()); switchView('admin');
+      cachedData = await res.json();
+      renderAdmin(cachedData); switchView('admin');
     } catch (e) { location.reload(); }
   }
 
@@ -334,7 +386,7 @@
   async function saveSettings() { 
     const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
     const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value, compMode: document.getElementById('adm-mode').value };
-    try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`); renderAdmin(await res.json()); btn.innerText = "Sparat!"; setTimeout(() => { btn.innerText = "Spara"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
+    try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`); cachedData = await res.json(); renderAdmin(cachedData); btn.innerText = "Sparat!"; setTimeout(() => { btn.innerText = "Spara"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
   }
 
   async function registerUser() {
@@ -353,32 +405,30 @@
   }
   async function addClass() {
     const nameInput = document.getElementById('new-class-name'); if(!nameInput.value) return;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(nameInput.value)}`); renderAdmin(await res.json()); nameInput.value = "";
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(nameInput.value)}`); cachedData = await res.json(); renderAdmin(cachedData); nameInput.value = "";
   }
-  async function deleteClass(btn, className) { if(confirm("Radera klass?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(className)}`); renderAdmin(await res.json()); } }
+  async function deleteClass(btn, className) { if(confirm("Radera klass?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(className)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function addProblem() {
     const idInput = document.getElementById('new-p-id'), nameInput = document.getElementById('new-p-name'); if(!idInput.value || !nameInput.value) return;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`); renderAdmin(await res.json()); idInput.value = ""; nameInput.value = "";
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`); cachedData = await res.json(); renderAdmin(cachedData); idInput.value = ""; nameInput.value = "";
   }
-  async function deleteProblem(btn, pId) { if(confirm("Radera?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${encodeURIComponent(pId)}`); renderAdmin(await res.json()); } }
-  async function resetUser(btn, userId) { if(confirm("Nollställ?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`); renderAdmin(await res.json()); } }
-  async function deleteUser(btn, userId) { if(confirm("Ta bort?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); renderAdmin(await res.json()); } }
-  async function confirmResetAll() { if(confirm("Radera ALLT?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); renderAdmin(await res.json()); } }
+  async function deleteProblem(btn, pId) { if(confirm("Radera?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${encodeURIComponent(pId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
+  async function resetUser(btn, userId) { if(confirm("Nollställ?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
+  async function deleteUser(btn, userId) { if(confirm("Ta bort?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
+  async function confirmResetAll() { if(confirm("Radera ALLT?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function loadClassesForRegistration() { try { const res = await fetch(`${API_URL}?action=getClasses`); const data = await res.json(); document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join(''); } catch (e) {} }
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
     if (action === 'admin') loadAdmin();
-    else if (action === 'scoreboard' || token) { 
+    else if (action === 'scoreboard' || action === 'results' || token) { 
       loadData(true); 
       setInterval(refreshTimer, 1000); 
       setInterval(() => { 
         if (!cachedData) return;
         const finalEnd = new Date(cachedData.settings.endTime).getTime() + 600000;
         const timeLeft = finalEnd - Date.now();
-        if (!document.hidden && !isCompClosed && timeLeft > 60000) {
-          loadData(false);
-        }
+        if (!document.hidden && !isCompClosed && timeLeft > 60000) { loadData(false); }
       }, 60000); 
     }
     else { switchView('register'); loadClassesForRegistration(); }
