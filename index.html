@@ -53,7 +53,6 @@
     .btn-accent-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ddd; background: var(--accent); color: white; cursor: pointer; border: none; }
     .btn-danger-mini { padding: 6px 10px; font-size: 11px; border-radius: 4px; border: 1px solid #ffebee; color: var(--danger); background: white; cursor: pointer; }
 
-    /* NYTT: Resultatvyn */
     #view-results { max-width: 800px; }
     @media print {
       .btn, .tab-nav, .timer-banner { display: none !important; }
@@ -64,8 +63,16 @@
 </head>
 <body>
 
-<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px;">
-  <strong>Västervik Climbing</strong><br>Ansluter...
+<div id="view-loading" class="view" style="display:block; text-align:center; padding-top:100px; height: 85vh; position: relative;">
+  <div style="margin-top: 15vh;">
+    <strong style="font-size: 22px;">Västervik Climbing</strong><br>
+    <span style="opacity: 0.7;">Ansluter...</span>
+  </div>
+  
+  <div style="position: absolute; bottom: 30px; width: 100%; left: 0; font-size: 11px; opacity: 0.5; letter-spacing: 0.5px; line-height: 1.5;">
+    SYSTEMET UTVECKLAT AV<br>
+    <strong style="font-size: 13px; color: var(--dark);">CHRISTOFFER JOHANSSON</strong>
+  </div>
 </div>
 
 <div id="view-register" class="view">
@@ -81,7 +88,7 @@
     <label>Välj Klass:</label>
     <select id="reg-class"><option value="Allmän">Väntar på klasser...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
-    <button class="btn-text" onclick="window.location.search = '?action=scoreboard'">Bara titta? Öppna scoreboard</button>
+    <button class="btn-text" onclick="window.location.search = '?action=scoreboard'">Bara titta? Visa Scoreboard</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
     <p style="color:var(--primary); font-weight:bold;">Klart! Din unika länk är skapad.</p>
@@ -283,49 +290,17 @@
     const gracePeriod = 600000; 
     const finalEnd = end + gracePeriod;
     const now = Date.now();
-    
     let label = "", targetTime = 0, bgColor = "var(--timer-bg)";
-    
-    if (now < start) {
-      isCompClosed = true;
-      label = "Tid till start: ";
-      targetTime = start - now;
-      bgColor = "var(--dark)"; 
-    } else if (now < finalEnd) {
-      isCompClosed = false;
-      targetTime = finalEnd - now;
-      if (now < end) {
-        label = "Tävling pågår: ";
-        bgColor = "var(--primary)";
-      } else {
-        label = "Efterregistrering: ";
-        bgColor = "var(--accent)";
-      }
-      if ((finalEnd - now) < 60000 && !lastMinuteInterval) {
-        lastMinuteInterval = setInterval(() => { if (!isCompClosed) loadData(false); }, 10000);
-      }
-    } else {
-      label = "Tävling avslutad!";
-      targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true;
-      if (lastMinuteInterval) { clearInterval(lastMinuteInterval); lastMinuteInterval = null; }
-      if (!finalFetchDone) { finalFetchDone = true; setTimeout(() => { loadData(false); }, 2000); }
-    }
-
+    if (now < start) { isCompClosed = true; label = "Tid till start: "; targetTime = start - now; bgColor = "var(--dark)"; }
+    else if (now < finalEnd) { isCompClosed = false; targetTime = finalEnd - now; if (now < end) { label = "Tävling pågår: "; bgColor = "var(--primary)"; } else { label = "Efterregistrering: "; bgColor = "var(--accent)"; }
+    if ((finalEnd - now) < 60000 && !lastMinuteInterval) { lastMinuteInterval = setInterval(() => { if (!isCompClosed) loadData(false); }, 10000); } }
+    else { label = "Tävling avslutad!"; targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true;
+    if (lastMinuteInterval) { clearInterval(lastMinuteInterval); lastMinuteInterval = null; }
+    if (!finalFetchDone) { finalFetchDone = true; setTimeout(() => { loadData(false); }, 2000); } }
     const h = Math.floor(targetTime/3600000), m = Math.floor((targetTime%3600000)/60000), s = Math.floor((targetTime%60000)/1000);
     const timeStr = targetTime > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : "";
-    
-    document.querySelectorAll('.timer-banner').forEach(el => { 
-      el.innerText = label + timeStr; 
-      el.style.background = bgColor;
-      if (targetTime < 10000 && targetTime > 0 && now >= start) { el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000'; }
-    });
-
-    if (currentTab === 'scorecard' && cachedData.currentUser) {
-       const plusButtons = document.querySelectorAll('.btn-s');
-       if (plusButtons.length > 0 && plusButtons[0].disabled !== isCompClosed) {
-         renderApp();
-       }
-    }
+    document.querySelectorAll('.timer-banner').forEach(el => { el.innerText = label + timeStr; el.style.background = bgColor;
+    if (targetTime < 10000 && targetTime > 0 && now >= start) { el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000'; } });
   }
 
   async function update(pId, delta) {
@@ -360,18 +335,7 @@
     if(data.settings.compMode) document.getElementById('adm-mode').value = data.settings.compMode;
     document.getElementById('admin-problem-list').innerHTML = data.problems.map(p => `<div class="row"><span>#${p.id} ${p.name}</span><button class="btn-mini" onclick="deleteProblem(this, '${p.id}')">Radera</button></div>`).join('');
     document.getElementById('admin-class-list').innerHTML = data.classes.map(c => `<div class="row"><span>${c}</span><button class="btn-mini" onclick="deleteClass(this, '${c}')">Radera</button></div>`).join('');
-    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `
-      <div class="row" style="padding: 12px;">
-        <div style="flex:1; overflow:hidden; margin-right: 10px;">
-          <strong>${u.name}</strong> <small>(${u.userClass})</small><br>
-          <small style="color:#888;">${u.email || 'Ingen e-post'}</small>
-        </div>
-        <div style="display:flex; gap:5px;">
-          <button class="btn-accent-mini" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button>
-          <button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button>
-          <button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button>
-        </div>
-      </div>`).join('');
+    document.getElementById('admin-user-list').innerHTML = data.users.map(u => `<div class="row" style="padding: 12px;"><div style="flex:1; overflow:hidden; margin-right: 10px;"><strong>${u.name}</strong> <small>(${u.userClass})</small><br><small style="color:#888;">${u.email || 'Ingen e-post'}</small></div><div style="display:flex; gap:5px;"><button class="btn-accent-mini" onclick="resendWelcomeEmail(this, '${u.name}', '${u.email}', ${u.length}, '${u.userClass}')">✉️ Länk</button><button class="btn-mini" onclick="resetUser(this, '${u.id}')">Reset</button><button class="btn-danger-mini" onclick="deleteUser(this, '${u.id}')">Ta bort</button></div></div>`).join('');
   }
 
   async function saveSettings() { 
@@ -414,19 +378,10 @@
       const data = await res.json(); 
       if(data.classes) document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
       if(data.settings && data.settings.compMode) {
-        const modeMap = {
-          'open_hcp': 'Alla mot alla med handikapp',
-          'open_no_hcp': 'Alla mot alla utan handikapp',
-          'class_hcp': 'Klassvis tävling med handikapp',
-          'class_no_hcp': 'Klassvis tävling utan handikapp'
-        };
+        const modeMap = { 'open_hcp': 'Alla mot alla med handikapp', 'open_no_hcp': 'Alla mot alla utan handikapp', 'class_hcp': 'Klassvis tävling med handikapp', 'class_no_hcp': 'Klassvis tävling utan handikapp' };
         document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Välkommen!";
-      } else {
-        document.getElementById('reg-mode-sub').innerText = "Välkommen!";
-      }
-    } catch (e) {
-      document.getElementById('reg-mode-sub').innerText = "Välkommen!";
-    } 
+      } else { document.getElementById('reg-mode-sub').innerText = "Välkommen!"; }
+    } catch (e) { document.getElementById('reg-mode-sub').innerText = "Välkommen!"; } 
   }
   
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
@@ -434,19 +389,13 @@
   window.onload = () => {
     if (action === 'admin') loadAdmin();
     else if (action === 'scoreboard' || action === 'results' || token) { 
-      loadData(true); 
-      setInterval(refreshTimer, 1000); 
-      setInterval(() => { 
-        if (!cachedData) return;
+      loadData(true); setInterval(refreshTimer, 1000); 
+      setInterval(() => { if (!cachedData) return;
         const finalEnd = new Date(cachedData.settings.endTime).getTime() + 600000;
-        const timeLeft = finalEnd - Date.now();
-        if (!document.hidden && !isCompClosed && timeLeft > 60000) { loadData(false); }
+        if (!document.hidden && !isCompClosed && (finalEnd - Date.now()) > 60000) { loadData(false); }
       }, 60000); 
     }
-    else { 
-      switchView('register'); 
-      loadClassesForRegistration(); 
-    }
+    else { switchView('register'); loadClassesForRegistration(); }
   };
 </script>
 </body>
