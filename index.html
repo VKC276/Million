@@ -69,7 +69,8 @@
 <div id="view-register" class="view">
   <div class="card" style="text-align:center; background:var(--dark); color:white; border:none; margin-top:30px;">
     <h2>Miljontävlingen</h2>
-    <p>Anmäl dig eller hämta din befintliga länk.</p>
+    <p id="reg-mode-sub">Hämtar tävlingsinställningar...</p>
+    <p style="font-size: 12px; opacity: 0.8;">Anmäl dig eller hämta din befintliga länk.</p>
   </div>
   <div class="card" id="reg-form-container">
     <label>Ditt Namn:</label><input type="text" id="reg-name" placeholder="Förnamn Efternamn">
@@ -394,7 +395,24 @@
   async function resetUser(btn, userId) { if(confirm("Nollställ?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function deleteUser(btn, userId) { if(confirm("Ta bort?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function confirmResetAll() { if(confirm("Radera ALLT?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); cachedData = await res.json(); renderAdmin(cachedData); } }
-  async function loadClassesForRegistration() { try { const res = await fetch(`${API_URL}?action=getClasses`); const data = await res.json(); document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join(''); } catch (e) {} }
+  async function loadClassesForRegistration() { 
+    try { 
+      const res = await fetch(`${API_URL}?action=getClasses`); 
+      const data = await res.json(); 
+      document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+      if(data.settings && data.settings.compMode) {
+        const modeMap = {
+          'open_hcp': 'Alla mot alla med handikapp',
+          'open_no_hcp': 'Alla mot alla utan handikapp)',
+          'class_hcp': 'Klassvis tävling med handikapp',
+          'class_no_hcp': 'Klassvis tävling utan handikapp'
+        };
+        document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Tävling pågår";
+      }
+    } catch (e) {
+      document.getElementById('reg-mode-sub').innerText = "Välkommen!";
+    } 
+  }
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
