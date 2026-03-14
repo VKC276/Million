@@ -37,6 +37,8 @@
     input, select { width: 100%; padding: 14px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; font-size: 16px; background: white; }
     .btn { background: var(--primary); color: white; border: none; padding: 15px; border-radius: 8px; width: 100%; font-weight: bold; cursor: pointer; transition: all 0.3s; font-size: 16px; }
     
+    .btn-text { background: none; border: none; color: #7f8c8d; text-decoration: underline; cursor: pointer; font-size: 13px; margin-top: 15px; width: 100%; }
+
     #view-scoreboard { max-width: 95vw; }
     .sb-grid { display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
     @media (max-width: 1000px) { .sb-grid { grid-template-columns: 1fr; } }
@@ -79,6 +81,7 @@
     <label>Välj Klass:</label>
     <select id="reg-class"><option value="Allmän">Väntar på klasser...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
+    <button class="btn-text" onclick="window.location.search = '?action=scoreboard'">Bara titta? Öppna scoreboard</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
     <p style="color:var(--primary); font-weight:bold;">Klart! Din unika länk är skapad.</p>
@@ -318,7 +321,6 @@
     });
 
     if (currentTab === 'scorecard' && cachedData.currentUser) {
-       // Kontrollera om vi behöver uppdatera knappar vid startskottet
        const plusButtons = document.querySelectorAll('.btn-s');
        if (plusButtons.length > 0 && plusButtons[0].disabled !== isCompClosed) {
          renderApp();
