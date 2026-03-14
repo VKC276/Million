@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Miljontävlingen</title>
+  <title>Boulderbörsen</title>
   <style>
     :root { 
       --primary: #27ae60; --dark: #2c3e50; --bg: #f0f2f1; --accent: #e67e22; --danger: #c0392b;
@@ -73,14 +73,14 @@
     <span style="opacity: 0.7;">Ansluter...</span>
   </div>
   <div class="loading-footer">
-    SYSTEMET UTVECKLAT AV<br>
+    BOULDERBÖRSEN UTVECKLAD AV<br>
     <strong style="font-size: 13px; color: var(--dark);">CHRISTOFFER JOHANSSON</strong>
   </div>
 </div>
 
 <div id="view-register" class="view" style="position: relative; min-height: 85vh;">
   <div class="card" style="text-align:center; background:var(--dark); color:white; border:none; margin-top:30px;">
-    <h2>Miljontävlingen</h2>
+    <h2 id="reg-title-display">Laddar...</h2>
     <p id="reg-mode-sub">Laddar tävlingsinfo...</p>
     <p style="font-size: 12px; opacity: 0.8;">Anmäl dig eller hämta din befintliga länk.</p>
   </div>
@@ -99,7 +99,7 @@
     <button class="btn" onclick="openMyScorecard()">ÖPPNA SCORECARD NU</button>
   </div>
   <div class="loading-footer" style="position: static; margin-top: 40px; text-align: center;">
-    SYSTEMET UTVECKLAT AV<br>
+    BOULDERBÖRSEN UTVECKLAD AV<br>
     <strong style="font-size: 13px; color: var(--dark);">CHRISTOFFER JOHANSSON</strong>
   </div>
 </div>
@@ -108,6 +108,8 @@
   <div class="card" style="background:var(--danger); color:white; text-align:center;"><h2 style="margin:0">Adminpanel</h2></div>
   <div class="card">
     <h3>Inställningar</h3>
+    <label>Tävlingens namn (Rubrik):</label>
+    <input type="text" id="adm-reg-title" placeholder="t.ex. Miljontävlingen">
     <div class="grid">
       <div><label>Pott:</label><input type="number" id="adm-pot"></div>
       <div><label>Ref (cm):</label><input type="number" id="adm-ref"></div>
@@ -159,8 +161,8 @@
 
 <div id="view-results" class="view">
   <div class="card" style="text-align:center; background:var(--dark); color:white; border:none;">
-    <h2 style="margin:0">Slutresultat</h2>
-    <p style="margin:5px 0 0 0; opacity:0.8;">Miljontävlingen</p>
+    <h2 style="margin:0" id="results-title-display">Slutresultat</h2>
+    <p style="margin:5px 0 0 0; opacity:0.8;">Boulderbörsen</p>
   </div>
   <div id="results-container"></div>
   <button class="btn" style="margin-top:10px; background:var(--dark);" onclick="window.print()">SKRIV UT / PDF</button>
@@ -230,6 +232,7 @@
 
   function renderResults() {
     const d = cachedData; if (!d || !d.leaderboard) return;
+    document.getElementById('results-title-display').innerText = d.settings.regPageTitle || "Slutresultat";
     const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
     let html = "";
     classes.forEach(className => {
@@ -282,7 +285,8 @@
 
   function renderScoreboard() {
     const d = cachedData; if(!d) return;
-    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name} <small>(${u.userClass})</small></span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
+    const title = d.settings.regPageTitle || "Scoreboard";
+    document.getElementById('sb-list').innerHTML = `<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px; text-transform:uppercase;">${title} - TOPPLISTA</h3>` + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name} <small>(${u.userClass})</small></span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
     document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3><div class="column-split" style="padding:10px;">' + d.problems.map(p => {
         const val = Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
         return `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${val.toLocaleString()}</strong></div>`;
@@ -335,6 +339,7 @@
   }
 
   function renderAdmin(data) {
+    document.getElementById('adm-reg-title').value = data.settings.regPageTitle || "Miljontävlingen";
     document.getElementById('adm-pot').value = data.settings.pot;
     document.getElementById('adm-ref').value = data.settings.refHeight;
     document.getElementById('adm-start').value = toLocalISO(data.settings.start);
@@ -347,7 +352,7 @@
 
   async function saveSettings() { 
     const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
-    const params = { action: 'updateSettings', pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value, compMode: document.getElementById('adm-mode').value };
+    const params = { action: 'updateSettings', regPageTitle: document.getElementById('adm-reg-title').value, pot: document.getElementById('adm-pot').value, refHeight: document.getElementById('adm-ref').value, start: document.getElementById('adm-start').value, end: document.getElementById('adm-end').value, compMode: document.getElementById('adm-mode').value };
     try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`); cachedData = await res.json(); renderAdmin(cachedData); btn.innerText = "Sparat!"; setTimeout(() => { btn.innerText = "Spara"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
   }
 
@@ -384,10 +389,13 @@
       const res = await fetch(`${API_URL}?action=getClasses`); 
       const data = await res.json(); 
       if(data.classes) document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
-      if(data.settings && data.settings.compMode) {
-        const modeMap = { 'open_hcp': 'Alla mot alla med handikapp', 'open_no_hcp': 'Alla mot alla utan handikapp', 'class_hcp': 'Klassvis tävling med handikapp', 'class_no_hcp': 'Klassvis tävling utan handikapp' };
-        document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Välkommen!";
-      } else { document.getElementById('reg-mode-sub').innerText = "Välkommen!"; }
+      if(data.settings) {
+        document.getElementById('reg-title-display').innerText = data.settings.regPageTitle || "Välkommen!";
+        if (data.settings.compMode) {
+          const modeMap = { 'open_hcp': 'Alla mot alla med handikapp', 'open_no_hcp': 'Alla mot alla utan handikapp', 'class_hcp': 'Klassvis tävling med handikapp', 'class_no_hcp': 'Klassvis tävling utan handikapp' };
+          document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Välkommen!";
+        } else { document.getElementById('reg-mode-sub').innerText = "Välkommen!"; }
+      }
     } catch (e) { document.getElementById('reg-mode-sub').innerText = "Välkommen!"; } 
   }
   
