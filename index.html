@@ -69,7 +69,7 @@
 <div id="view-register" class="view">
   <div class="card" style="text-align:center; background:var(--dark); color:white; border:none; margin-top:30px;">
     <h2>Miljontävlingen</h2>
-    <p id="reg-mode-sub">Hämtar tävlingsinställningar...</p>
+    <p id="reg-mode-sub">Laddar tävlingsinfo...</p>
     <p style="font-size: 12px; opacity: 0.8;">Anmäl dig eller hämta din befintliga länk.</p>
   </div>
   <div class="card" id="reg-form-container">
@@ -77,7 +77,7 @@
     <label>E-post:</label><input type="email" id="reg-email" placeholder="namn@epost.se">
     <label>Din Längd i cm (används i tävlingar med påslaget handikapp):</label><input type="number" id="reg-height" value="180">
     <label>Välj Klass:</label>
-    <select id="reg-class"><option value="Allmän">Laddar klasser...</option></select>
+    <select id="reg-class"><option value="Allmän">Väntar på klasser...</option></select>
     <button class="btn" id="btn-do-reg" onclick="registerUser()">SKAPA PROFIL / SKICKA LÄNK</button>
   </div>
   <div id="reg-result" style="display:none;" class="card">
@@ -395,11 +395,12 @@
   async function resetUser(btn, userId) { if(confirm("Nollställ?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function deleteUser(btn, userId) { if(confirm("Ta bort?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function confirmResetAll() { if(confirm("Radera ALLT?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetEverything`); cachedData = await res.json(); renderAdmin(cachedData); } }
+  
   async function loadClassesForRegistration() { 
     try { 
       const res = await fetch(`${API_URL}?action=getClasses`); 
       const data = await res.json(); 
-      document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+      if(data.classes) document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
       if(data.settings && data.settings.compMode) {
         const modeMap = {
           'open_hcp': 'Alla mot alla med handikapp',
@@ -407,12 +408,15 @@
           'class_hcp': 'Klassvis tävling med handikapp',
           'class_no_hcp': 'Klassvis tävling utan handikapp'
         };
-        document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Tävling pågår";
+        document.getElementById('reg-mode-sub').innerText = modeMap[data.settings.compMode] || "Välkommen!";
+      } else {
+        document.getElementById('reg-mode-sub').innerText = "Välkommen!";
       }
     } catch (e) {
       document.getElementById('reg-mode-sub').innerText = "Välkommen!";
     } 
   }
+  
   function setTab(t) { currentTab = t; document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); document.getElementById('btn-'+t).classList.add('active'); renderApp(); }
 
   window.onload = () => {
@@ -427,7 +431,10 @@
         if (!document.hidden && !isCompClosed && timeLeft > 60000) { loadData(false); }
       }, 60000); 
     }
-    else { switchView('register'); loadClassesForRegistration(); }
+    else { 
+      switchView('register'); // VISA SIDAN DIREKT
+      loadClassesForRegistration(); // LADDA DATA I BAKGRUNDEN
+    }
   };
 </script>
 </body>
