@@ -276,15 +276,88 @@
   }
   document.getElementById('list').innerHTML = html; refreshTimer();
 }
-  function renderScoreboard() {
-    const d = cachedData; if(!d) return;
-    document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name} <small>(${u.userClass})</small></span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
-    document.getElementById('sb-market').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">BÖRSEN</h3><div class="column-split" style="padding:10px;">' + d.problems.map(p => {
-        const val = Math.round(d.settings.totalPot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
-        return `<div class="row"><span class="p-num">#${p.id}</span><span class="p-name">${p.name}</span><strong class="market-val">${val.toLocaleString()}</strong></div>`;
-    }).join('') + '</div>';
-    refreshTimer();
+let scoreboardCarouselInterval = null;
+let currentCarouselClassIndex = 0;
+
+function renderScoreboard() {
+  const d = cachedData; if(!d) return;
+  
+  // 1. Hämta alla unika klasser från leaderboarden
+  const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+  if (classes.length === 0) return;
+
+  // 2. Starta karusellen om den inte redan körs
+  if (!scoreboardCarouselInterval) {
+    currentCarouselClassIndex = 0;
+    scoreboardCarouselInterval = setInterval(() => {
+      currentCarouselClassIndex = (currentCarouselClassIndex + 1) % classes.length;
+      showCurrentClassInCarousel();
+    }, 15000); // 15 sekunder per klass
   }
+
+  // Visa första klassen direkt
+  showCurrentClassInCarousel();
+  refreshTimer();
+}
+
+function showCurrentClassInCarousel() {
+  const d = cachedData; if(!d) return;
+  const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+  if (classes.length === 0) return;
+  
+  const currentClass = classes[currentCarouselClassIndex];
+  const pot = d.settings.totalPot || 1000000;
+
+  // --- TOPPLISTA FÖR AKTUELL KLASS ---
+  const classFiltered = d.leaderboard
+    .filter(u => u.userClass === currentClass)
+    .slice(0, 15);
+
+  document.getElementById('sb-list').innerHTML = `
+    <div class="card" style="padding:0; border: 2px solid var(--primary); animation: fadeIn 0.5s;">
+      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center;">
+        TOPPLISTA: ${currentClass.toUpperCase()}
+      </h3>
+      <div style="padding:5px;">
+        ${classFiltered.map((u, i) => `
+          <div class="row">
+            <span class="p-num">${i+1}.</span>
+            <span class="p-name" style="font-size:16px;">${u.name}</span>
+            <strong style="color:var(--primary); font-size:18px;">${Math.round(u.score).toLocaleString()} p</strong>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+
+  // --- BÖRSEN FÖR AKTUELL KLASS ---
+  document.getElementById('sb-market').innerHTML = `
+    <div class="card" style="padding:0; border: 2px solid var(--timer-bg); animation: fadeIn 0.5s;">
+      <h3 style="background:var(--timer-bg); color:white; margin:0; padding:15px; font-size:16px; text-align:center;">
+        BÖRSEN: ${currentClass.toUpperCase()}
+      </h3>
+      <div class="column-split" style="padding:10px;">
+        ${d.problems.map(p => {
+          // Hämtar shares för just denna klass från din backend-struktur
+          const pVal = d.problemValues[p.id];
+          const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
+          
+          // Beräkna värdet: Pott / shares (vi lägger inte till +1 här eftersom backend redan räknat ut faktiska shares)
+          // Om shares är 0 betyder det att ingen i klassen gjort den än = Max pott
+          const val = shares > 0 ? Math.round(pot / shares) : pot; 
+          
+          return `
+            <div class="row">
+              <span class="p-num">#${p.id}</span>
+              <span class="p-name">${p.name}</span>
+              <strong class="market-val">${val.toLocaleString()} p</strong>
+            </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">
+      Visar klass ${currentCarouselClassIndex + 1} av ${classes.length} • Uppdateras live
+    </div>`;
+}
 
   function refreshTimer() {
     if (!cachedData) return;
