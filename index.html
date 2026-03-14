@@ -281,38 +281,77 @@ let currentCarouselClassIndex = 0;
 
 function renderScoreboard() {
   const d = cachedData; if(!d) return;
-  
-  // 1. Hämta alla unika klasser från leaderboarden
-  const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-  if (classes.length === 0) return;
+  const compMode = d.settings.compMode || "open_hcp";
+  const isClassMode = compMode.indexOf('class_') === 0;
 
-  // 2. Starta karusellen om den inte redan körs
-  if (!scoreboardCarouselInterval) {
-    currentCarouselClassIndex = 0;
-    scoreboardCarouselInterval = setInterval(() => {
-      currentCarouselClassIndex = (currentCarouselClassIndex + 1) % classes.length;
-      showCurrentClassInCarousel();
-    }, 15000); // 15 sekunder per klass
+  if (isClassMode) {
+    // KLASSTÄVLAN: Aktivera karusell
+    const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+    if (classes.length === 0) return;
+
+    if (!scoreboardCarouselInterval) {
+      currentCarouselClassIndex = 0;
+      scoreboardCarouselInterval = setInterval(() => {
+        currentCarouselClassIndex = (currentCarouselClassIndex + 1) % classes.length;
+        showCurrentClassInCarousel();
+      }, 15000);
+    }
+    showCurrentClassInCarousel();
+  } else {
+    // ALLA MOT ALLA: Visa fast global vy
+    if (scoreboardCarouselInterval) {
+      clearInterval(scoreboardCarouselInterval);
+      scoreboardCarouselInterval = null;
+    }
+    renderGlobalScoreboard();
   }
-
-  // Visa första klassen direkt
-  showCurrentClassInCarousel();
   refreshTimer();
+}
+
+function renderGlobalScoreboard() {
+  const d = cachedData;
+  const pot = d.settings.totalPot || 1000000;
+
+  // Global Topplista
+  document.getElementById('sb-list').innerHTML = `
+    <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
+      TOPPLISTA
+    </h3>
+    <div style="padding:5px;">
+      ${d.leaderboard.slice(0, 25).map((u, i) => `
+        <div class="row">
+          <span class="p-num">${i+1}.</span>
+          <span class="p-name">${u.name}</span>
+          <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
+        </div>`).join('')}
+    </div>`;
+
+  // Global Börs
+  document.getElementById('sb-market').innerHTML = `
+    <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
+      BÖRSEN
+    </h3>
+    <div class="column-split" style="padding:10px;">
+      ${d.problems.map(p => {
+        const val = Math.round(pot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
+        return `
+          <div class="row">
+            <span class="p-num">#${p.id}</span>
+            <span class="p-name">${p.name}</span>
+            <strong class="market-val">${val.toLocaleString()}</strong>
+          </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function showCurrentClassInCarousel() {
   const d = cachedData; if(!d) return;
   const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-  if (classes.length === 0 || currentCarouselClassIndex >= classes.length) return;
-  
   const currentClass = classes[currentCarouselClassIndex];
   const pot = d.settings.totalPot || 1000000;
 
-  // --- TOPPLISTA FÖR AKTUELL KLASS ---
-  const classFiltered = d.leaderboard
-    .filter(u => u.userClass === currentClass)
-    .slice(0, 15);
-
+  // Topplista för klassen
+  const classFiltered = d.leaderboard.filter(u => u.userClass === currentClass).slice(0, 15);
   document.getElementById('sb-list').innerHTML = `
     <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
       <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
@@ -324,13 +363,11 @@ function showCurrentClassInCarousel() {
             <span class="p-num">${i+1}.</span>
             <span class="p-name">${u.name}</span>
             <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
-          </div>
-        `).join('')}
-        ${classFiltered.length === 0 ? '<div class="row">Inga resultat än.</div>' : ''}
+          </div>`).join('')}
       </div>
     </div>`;
 
-  // --- BÖRSEN FÖR AKTUELL KLASS (MED KOLUMNER) ---
+  // Börs för klassen
   document.getElementById('sb-market').innerHTML = `
     <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
       <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
@@ -341,7 +378,6 @@ function showCurrentClassInCarousel() {
           const pVal = d.problemValues[p.id];
           const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
           const val = shares > 0 ? Math.round(pot / shares) : pot; 
-          
           return `
             <div class="row">
               <span class="p-num">#${p.id}</span>
