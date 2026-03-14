@@ -275,20 +275,22 @@
 
   function refreshTimer() {
     if (!cachedData) return;
+    const start = new Date(cachedData.settings.startTime).getTime();
     const end = new Date(cachedData.settings.endTime).getTime();
     const gracePeriod = 600000; 
     const finalEnd = end + gracePeriod;
     const now = Date.now();
-    const timeLeft = finalEnd - now;
     
     let label = "", targetTime = 0, bgColor = "var(--timer-bg)";
-    isCompClosed = false;
-
-    if (now < new Date(cachedData.settings.startTime).getTime()) {
+    
+    if (now < start) {
+      isCompClosed = true;
       label = "Tid till start: ";
-      targetTime = new Date(cachedData.settings.startTime).getTime() - now;
+      targetTime = start - now;
+      bgColor = "var(--dark)"; 
     } else if (now < finalEnd) {
-      targetTime = timeLeft;
+      isCompClosed = false;
+      targetTime = finalEnd - now;
       if (now < end) {
         label = "Tävling pågår: ";
         bgColor = "var(--primary)";
@@ -296,7 +298,7 @@
         label = "Efterregistrering: ";
         bgColor = "var(--accent)";
       }
-      if (timeLeft < 60000 && !lastMinuteInterval) {
+      if ((finalEnd - now) < 60000 && !lastMinuteInterval) {
         lastMinuteInterval = setInterval(() => { if (!isCompClosed) loadData(false); }, 10000);
       }
     } else {
@@ -312,8 +314,16 @@
     document.querySelectorAll('.timer-banner').forEach(el => { 
       el.innerText = label + timeStr; 
       el.style.background = bgColor;
-      if (targetTime < 10000 && targetTime > 0) { el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000'; }
+      if (targetTime < 10000 && targetTime > 0 && now >= start) { el.style.background = (s % 2 === 0) ? 'var(--danger)' : '#000'; }
     });
+
+    if (currentTab === 'scorecard' && cachedData.currentUser) {
+       // Kontrollera om vi behöver uppdatera knappar vid startskottet
+       const plusButtons = document.querySelectorAll('.btn-s');
+       if (plusButtons.length > 0 && plusButtons[0].disabled !== isCompClosed) {
+         renderApp();
+       }
+    }
   }
 
   async function update(pId, delta) {
@@ -432,8 +442,8 @@
       }, 60000); 
     }
     else { 
-      switchView('register'); // VISA SIDAN DIREKT
-      loadClassesForRegistration(); // LADDA DATA I BAKGRUNDEN
+      switchView('register'); 
+      loadClassesForRegistration(); 
     }
   };
 </script>
