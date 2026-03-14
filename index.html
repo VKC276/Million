@@ -233,41 +233,46 @@
     document.getElementById('results-container').innerHTML = html;
   }
 
-  function renderApp() {
-    const d = cachedData; if (!d || !d.currentUser) return;
-    const pot = d.settings.totalPot || 0;
-    d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
-    const myTotal = d.leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
-    document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+ function renderApp() {
+  const d = cachedData; if (!d || !d.currentUser) return;
+  const pot = d.settings.totalPot || 0;
+  d.problems.forEach(p => { if (!(updateQueue[p.id]?.length)) localSends[p.id] = d.userSends[p.id] || 0; });
+  const myTotal = d.leaderboard.find(u => u.id === d.currentUser.id)?.score || 0;
+  document.getElementById('header-box').innerHTML = `<div class="card header-card"><div><small>HCP: ${d.currentUser.factor.toFixed(2)}x</small><br><strong>${d.currentUser.name}</strong></div><div style="text-align:right;"><small>TOTALT</small><br><strong style="font-size:24px; color:#2ecc71;">${Math.round(myTotal).toLocaleString()}</strong></div></div>`;
+  
+  // DÖLJ filter-containern som standard
+  document.getElementById('class-filter-container').style.display = 'none';
+  
+  let html = "";
+  if (currentTab === 'scorecard') {
+    d.problems.forEach(p => {
+      const pVal = d.problemValues[p.id];
+      let scoreDisplay = "0 p";
+      if (updateQueue[p.id]?.length) {
+        scoreDisplay = '<span class="sync-dots"></span>';
+      } else if (pVal && pVal.totalShares > 0 && localSends[p.id] > 0) {
+        const scoreVal = ((localSends[p.id] * d.currentUser.factor) / pVal.totalShares) * pot;
+        scoreDisplay = Math.round(scoreVal).toLocaleString() + ' p';
+      }
+      html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${scoreDisplay}</div><div class="stepper"><button class="btn-s" ${isCompClosed?'disabled':''} onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" ${isCompClosed?'disabled':''} onclick="update('${p.id}',1)">+</button></div></div>`;
+    });
+  } else if (currentTab === 'leaderboard') {
+    // VISA filter-containern ENDAST här
+    const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+    document.getElementById('class-filter-container').style.display = 'block';
+    document.getElementById('dynamic-filter-bar').innerHTML = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="selectedClass='Alla';renderApp()">Alla</div>` + classes.map(c => `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="selectedClass='${c}';renderApp()">${c}</div>`).join('');
     
-    let html = "";
-    if (currentTab === 'scorecard') {
-      d.problems.forEach(p => {
-        const pVal = d.problemValues[p.id];
-        let scoreDisplay = "0 p";
-        if (updateQueue[p.id]?.length) {
-          scoreDisplay = '<span class="sync-dots"></span>';
-        } else if (pVal && pVal.totalShares > 0 && localSends[p.id] > 0) {
-          const scoreVal = ((localSends[p.id] * d.currentUser.factor) / pVal.totalShares) * pot;
-          scoreDisplay = Math.round(scoreVal).toLocaleString() + ' p';
-        }
-        html += `<div class="card"><strong>#${p.id} ${p.name}</strong><div class="p-score">${scoreDisplay}</div><div class="stepper"><button class="btn-s" ${isCompClosed?'disabled':''} onclick="update('${p.id}',-1)">−</button><b style="font-size:28px;">${localSends[p.id] || 0}</b><button class="btn-s plus" ${isCompClosed?'disabled':''} onclick="update('${p.id}',1)">+</button></div></div>`;
-      });
-    } else if (currentTab === 'leaderboard') {
-      const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-      document.getElementById('class-filter-container').style.display = 'block';
-      document.getElementById('dynamic-filter-bar').innerHTML = `<div class="filter-chip ${selectedClass === 'Alla' ? 'active' : ''}" onclick="selectedClass='Alla';renderApp()">Alla</div>` + classes.map(c => `<div class="filter-chip ${selectedClass === c ? 'active' : ''}" onclick="selectedClass='${c}';renderApp()">${c}</div>`).join('');
-      const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || u.userClass === selectedClass);
-      filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id === d.currentUser.id ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888;">(${u.userClass})</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
-    } else {
-      d.problems.forEach(p => { 
-        const val = Math.round(pot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
-        html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${val.toLocaleString()} p</strong></div>`; 
-      });
-    }
-    document.getElementById('list').innerHTML = html; refreshTimer();
+    const filtered = d.leaderboard.filter(u => selectedClass === "Alla" || u.userClass === selectedClass);
+    filtered.forEach((u, i) => { html += `<div class="card" style="display:flex; justify-content:space-between; ${u.id === d.currentUser.id ? 'border:2px solid var(--primary)':''}"><span>${i+1}. ${u.name} <small style="color:#888;">(${u.userClass})</small></span><strong>${Math.round(u.score).toLocaleString()} p</strong></div>`; });
+  } else {
+    // Tab för Börsen
+    d.problems.forEach(p => { 
+      const val = Math.round(pot / ((d.problemValues[p.id]?.totalShares || 0) + 1));
+      html += `<div class="card" style="display:flex; justify-content:space-between;"><span>#${p.id} ${p.name}</span><strong class="market-val">${val.toLocaleString()} p</strong></div>`; 
+    });
   }
-
+  document.getElementById('list').innerHTML = html; refreshTimer();
+}
   function renderScoreboard() {
     const d = cachedData; if(!d) return;
     document.getElementById('sb-list').innerHTML = '<h3 class="card" style="background:var(--dark);color:white;margin:0;border-radius:12px 12px 0 0; font-size:14px; padding:15px;">TOPPLISTA</h3>' + d.leaderboard.slice(0, 25).map((u,i) => `<div class="row"><span class="p-num">${i+1}.</span><span class="p-name">${u.name} <small>(${u.userClass})</small></span><strong class="market-val">${Math.round(u.score).toLocaleString()}</strong></div>`).join('');
