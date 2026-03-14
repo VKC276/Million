@@ -124,7 +124,7 @@
 
   <div class="card" style="margin-top:20px;">
     <h3>Deltagare & Verktyg</h3>
-    <button class="btn" style="background:#2980b9; margin-bottom:15px;" onclick="downloadCSV()">LADDA NER RESULTAT (CSV)</button>
+    <button class="btn" style="background:#2980b9; margin-bottom:15px;" onclick="window.open(window.location.origin + window.location.pathname + '?action=results', '_blank')">ÖPPNA RESULTATSIDA (FÖR UTSKRIFT)</button>
     <div id="admin-user-list"></div>
     <hr style="margin:20px 0; border:0; border-top:1px solid #eee;">
     <button class="btn" style="background:black;" id="btn-reset-all" onclick="confirmResetAll()">NOLLSTÄLL ALLT</button>
@@ -210,7 +210,6 @@
     } catch (e) { console.error(e); }
   }
 
-  // NYTT: Funktion för action=results
   function renderResults() {
     const d = cachedData; if (!d || !d.leaderboard) return;
     const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
@@ -226,27 +225,6 @@
       html += `</div></div>`;
     });
     document.getElementById('results-container').innerHTML = html;
-  }
-
-  // NYTT: Förbättrad CSV-export
-  function downloadCSV() {
-    if (!cachedData || !cachedData.leaderboard) return alert("Ingen data laddad. Ladda om sidan.");
-    let csv = "data:text/csv;charset=utf-8,\uFEFFKlass;Placering;Namn;Poäng;HCP\n";
-    const sorted = [...cachedData.leaderboard].sort((a,b) => {
-      if(a.userClass !== b.userClass) return a.userClass.localeCompare(b.userClass);
-      return b.score - a.score;
-    });
-    let curCls = "", pos = 0;
-    sorted.forEach(u => {
-      if(u.userClass !== curCls) { curCls = u.userClass; pos = 1; } else { pos++; }
-      csv += `"${u.userClass}";${pos};"${u.name}";${Math.round(u.score)};${u.factor.toFixed(2)}\n`;
-    });
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", "resultat_miljontavlingen.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   function renderApp() {
