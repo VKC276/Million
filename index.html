@@ -347,47 +347,52 @@ function renderGlobalScoreboard() {
 function showCurrentClassInCarousel() {
   const d = cachedData; if(!d) return;
   const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
+  if (classes.length === 0 || currentCarouselClassIndex >= classes.length) return;
+  
   const currentClass = classes[currentCarouselClassIndex];
   const pot = d.settings.totalPot || 1000000;
 
-  // Topplista för klassen
-  const classFiltered = d.leaderboard.filter(u => u.userClass === currentClass).slice(0, 15);
+  // --- TOPPLISTA FÖR AKTUELL KLASS ---
+  const classFiltered = d.leaderboard
+    .filter(u => u.userClass === currentClass)
+    .slice(0, 15);
+
+  // Vi raderar "card"-diven här och kör rubriken direkt
   document.getElementById('sb-list').innerHTML = `
-    <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
-      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
-        TOPPLISTA: ${currentClass.toUpperCase()}
-      </h3>
-      <div style="padding:5px;">
-        ${classFiltered.map((u, i) => `
-          <div class="row">
-            <span class="p-num">${i+1}.</span>
-            <span class="p-name">${u.name}</span>
-            <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
-          </div>`).join('')}
-      </div>
+    <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0; animation: fadeIn 0.5s;">
+      TOPPLISTA: ${currentClass.toUpperCase()}
+    </h3>
+    <div style="padding:5px; animation: fadeIn 0.5s;">
+      ${classFiltered.map((u, i) => `
+        <div class="row">
+          <span class="p-num">${i+1}.</span>
+          <span class="p-name">${u.name}</span>
+          <strong class="market-val">${Math.round(u.score).toLocaleString()}</strong>
+        </div>
+      `).join('')}
+      ${classFiltered.length === 0 ? '<div class="row">Inga resultat än.</div>' : ''}
     </div>`;
 
-  // Börs för klassen
+  // --- BÖRSEN FÖR AKTUELL KLASS ---
   document.getElementById('sb-market').innerHTML = `
-    <div class="card" style="padding:0; border:none; animation: fadeIn 0.5s;">
-      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0;">
-        BÖRSEN: ${currentClass.toUpperCase()}
-      </h3>
-      <div class="column-split" style="padding:10px;">
-        ${d.problems.map(p => {
-          const pVal = d.problemValues[p.id];
-          const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
-          const val = shares > 0 ? Math.round(pot / shares) : pot; 
-          return `
-            <div class="row">
-              <span class="p-num">#${p.id}</span>
-              <span class="p-name">${p.name}</span>
-              <strong class="market-val">${val.toLocaleString()}</strong>
-            </div>`;
-        }).join('')}
-      </div>
+    <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center; border-radius:12px 12px 0 0; animation: fadeIn 0.5s;">
+      BÖRSEN: ${currentClass.toUpperCase()}
+    </h3>
+    <div class="column-split" style="padding:10px; animation: fadeIn 0.5s;">
+      ${d.problems.map(p => {
+        const pVal = d.problemValues[p.id];
+        const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
+        const val = shares > 0 ? Math.round(pot / shares) : pot; 
+        
+        return `
+          <div class="row">
+            <span class="p-num">#${p.id}</span>
+            <span class="p-name">${p.name}</span>
+            <strong class="market-val">${val.toLocaleString()}</strong>
+          </div>`;
+      }).join('')}
     </div>
-    <div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">
+    <div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6; padding-bottom:10px;">
       Klass ${currentCarouselClassIndex + 1} av ${classes.length}
     </div>`;
 }
