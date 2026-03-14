@@ -303,60 +303,57 @@ function renderScoreboard() {
 function showCurrentClassInCarousel() {
   const d = cachedData; if(!d) return;
   const classes = [...new Set(d.leaderboard.map(u => u.userClass || "Allmän"))].sort();
-  if (classes.length === 0) return;
+  if (classes.length === 0 || currentCarouselClassIndex >= classes.length) return;
   
   const currentClass = classes[currentCarouselClassIndex];
   const pot = d.settings.totalPot || 1000000;
 
-  // --- TOPPLISTA FÖR AKTUELL KLASS ---
+  // Renderings-hjälp för att hålla koden ren
+  const createTableHtml = (title, color, contentHtml) => `
+    <div style="background:white; border:1px solid #ddd; border-radius:8px; overflow:hidden; animation: fadeIn 0.5s; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+      <div style="background:${color}; color:white; padding:15px; font-size:18px; font-weight:bold; text-align:center; text-transform:uppercase;">
+        ${title}: ${currentClass}
+      </div>
+      <div style="display:flex; flex-direction:column;">
+        ${contentHtml}
+      </div>
+    </div>
+  `;
+
+  // --- TOPPLISTA ---
   const classFiltered = d.leaderboard
     .filter(u => u.userClass === currentClass)
     .slice(0, 15);
 
-  document.getElementById('sb-list').innerHTML = `
-    <div class="card" style="padding:0; border: 2px solid var(--primary); animation: fadeIn 0.5s;">
-      <h3 style="background:var(--dark); color:white; margin:0; padding:15px; font-size:18px; text-align:center;">
-        TOPPLISTA: ${currentClass.toUpperCase()}
-      </h3>
-      <div style="padding:5px;">
-        ${classFiltered.map((u, i) => `
-          <div class="row">
-            <span class="p-num">${i+1}.</span>
-            <span class="p-name" style="font-size:16px;">${u.name}</span>
-            <strong style="color:var(--primary); font-size:18px;">${Math.round(u.score).toLocaleString()} p</strong>
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
-
-  // --- BÖRSEN FÖR AKTUELL KLASS ---
-  document.getElementById('sb-market').innerHTML = `
-    <div class="card" style="padding:0; border: 2px solid var(--timer-bg); animation: fadeIn 0.5s;">
-      <h3 style="background:var(--timer-bg); color:white; margin:0; padding:15px; font-size:16px; text-align:center;">
-        BÖRSEN: ${currentClass.toUpperCase()}
-      </h3>
-      <div class="column-split" style="padding:10px;">
-        ${d.problems.map(p => {
-          // Hämtar shares för just denna klass från din backend-struktur
-          const pVal = d.problemValues[p.id];
-          const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
-          
-          // Beräkna värdet: Pott / shares (vi lägger inte till +1 här eftersom backend redan räknat ut faktiska shares)
-          // Om shares är 0 betyder det att ingen i klassen gjort den än = Max pott
-          const val = shares > 0 ? Math.round(pot / shares) : pot; 
-          
-          return `
-            <div class="row">
-              <span class="p-num">#${p.id}</span>
-              <span class="p-name">${p.name}</span>
-              <strong class="market-val">${val.toLocaleString()} p</strong>
-            </div>`;
-        }).join('')}
-      </div>
+  const topListHtml = classFiltered.length > 0 ? classFiltered.map((u, i) => `
+    <div style="display:flex; justify-content:space-between; padding:12px 15px; border-bottom:1px solid #eee; background:${i < 3 ? '#f9fdf9' : 'white'};">
+      <span style="font-weight:bold; color:#888; width:30px;">${i+1}.</span>
+      <span style="flex:1; font-weight:500;">${u.name}</span>
+      <strong style="color:var(--primary);">${Math.round(u.score).toLocaleString()} p</strong>
     </div>
-    <div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">
-      Visar klass ${currentCarouselClassIndex + 1} av ${classes.length} • Uppdateras live
-    </div>`;
+  `).join('') : '<div style="padding:20px; text-align:center; color:#999;">Inga resultat än</div>';
+
+  document.getElementById('sb-list').innerHTML = createTableHtml('Topplista', 'var(--dark)', topListHtml);
+
+  // --- BÖRSEN ---
+  const marketHtml = d.problems.map(p => {
+    const pVal = d.problemValues[p.id];
+    const shares = (pVal && pVal.allClasses) ? (pVal.allClasses[currentClass] || 0) : 0;
+    const val = shares > 0 ? Math.round(pot / shares) : pot;
+    
+    return `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 15px; border-bottom:1px solid #eee;">
+        <div style="display:flex; align-items:center;">
+          <span style="font-weight:bold; color:#888; width:40px;">#${p.id}</span>
+          <span style="font-weight:500;">${p.name}</span>
+        </div>
+        <strong style="color:var(--primary); font-family:monospace; font-size:18px;">${val.toLocaleString()} <small style="font-weight:normal; font-size:12px;">p</small></strong>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('sb-market').innerHTML = createTableHtml('Börsen', 'var(--timer-bg)', marketHtml) + 
+    `<div style="text-align:center; font-size:11px; color:#888; margin-top:10px; opacity:0.6;">Klass ${currentCarouselClassIndex + 1} av ${classes.length}</div>`;
 }
 
   function refreshTimer() {
