@@ -298,10 +298,10 @@
     const finalEnd = end + gracePeriod;
     const now = Date.now();
     let label = "", targetTime = 0, bgColor = "var(--timer-bg)";
-    if (now < start) { isCompClosed = true; label = "Tid till start: "; targetTime = start - now; bgColor = "var(--dark)"; }
-    else if (now < finalEnd) { isCompClosed = false; targetTime = finalEnd - now; if (now < end) { label = "Tävling pågår: "; bgColor = "var(--primary)"; } else { label = "Efterregistrering: "; bgColor = "var(--accent)"; }
+    if (now < start) { isCompClosed = true; label = "TID TILL START: "; targetTime = start - now; bgColor = "var(--dark)"; }
+    else if (now < finalEnd) { isCompClosed = false; targetTime = finalEnd - now; if (now < end) { label = "TÄVLING PÅGÅR: "; bgColor = "var(--primary)"; } else { label = "EFTERREGISTRERING: "; bgColor = "var(--accent)"; }
     if ((finalEnd - now) < 60000 && !lastMinuteInterval) { lastMinuteInterval = setInterval(() => { if (!isCompClosed) loadData(false); }, 10000); } }
-    else { label = "Tävling avslutad!"; targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true;
+    else { label = "TÄVLING AVSLUTAD!"; targetTime = 0; bgColor = "var(--danger)"; isCompClosed = true;
     if (lastMinuteInterval) { clearInterval(lastMinuteInterval); lastMinuteInterval = null; }
     if (!finalFetchDone) { finalFetchDone = true; setTimeout(() => { loadData(false); }, 2000); } }
     const h = Math.floor(targetTime/3600000), m = Math.floor((targetTime%3600000)/60000), s = Math.floor((targetTime%60000)/1000);
