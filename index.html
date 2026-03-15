@@ -540,26 +540,42 @@ if (isCompClosed) {
   
 
 async function addProblem() {
-  const id = document.getElementById('adm-p-id').value;
-  const name = document.getElementById('adm-p-name').value;
-  if(!id || !name) return alert("Fyll i både ID och namn");
-
-  // Hitta knappen baserat på dess funktion
-  const btn = document.querySelector('button[onclick="addProblem()"]');
-  const originalText = btn.innerText;
+  // 1. Hitta inputfälten (använder dina original-ID:n)
+  const idInput = document.getElementById('new-p-id');
+  const nameInput = document.getElementById('new-p-name');
   
-  btn.innerText = "LÄGGER TILL...";
-  btn.disabled = true;
+  if(!idInput || !idInput.value || !nameInput || !nameInput.value) return;
+
+  // 2. Hämta knappen via event-objektet (fungerar i alla moderna webbläsare)
+  const e = window.event;
+  const btn = e ? (e.target || e.srcElement) : null;
+  
+  let originalText = "";
+  if (btn) {
+    originalText = btn.innerText;
+    btn.innerText = "LÄGGER TILL...";
+    btn.disabled = true;
+  }
 
   try {
-    const res = await fetch(`${API_URL}?action=addProblem&pwd=${ADMIN_PASSWORD}&pId=${id}&name=${encodeURIComponent(name)}`);
-    const data = await res.json();
-    cachedData = data;
-    renderAdmin(data); // Detta ritar om adminvyn och återställer knappen automatiskt
-  } catch (e) {
-    alert("Kunde inte lägga till problem");
-    btn.innerText = originalText;
-    btn.disabled = false;
+    // 3. Skicka anropet (använder din original-logik)
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`);
+    cachedData = await res.json();
+    
+    // 4. Rendera om vyn (återställer knappen automatiskt)
+    renderAdmin(cachedData);
+    
+    // 5. Töm fälten
+    idInput.value = ""; 
+    nameInput.value = "";
+  } catch (err) {
+    console.error("Fel vid addProblem:", err);
+    // Om något går fel återställer vi knappen manuellt så den inte fastnar som grå
+    if (btn) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+    alert("Kunde inte lägga till problem. Kontrollera anslutningen.");
   }
 }
   
