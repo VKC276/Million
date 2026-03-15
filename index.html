@@ -532,10 +532,11 @@ if (isCompClosed) {
     try { const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${length}&userClass=${encodeURIComponent(userClass)}`); btn.innerText = "Skickat!"; setTimeout(() => { btn.innerText = "✉️ Länk"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
   }
 async function addClass() {
-  const classNameInput = document.getElementById('adm-class-name');
-  if(!classNameInput || !classNameInput.value) return;
+  // 1. Använd ditt korrekta ID: new-class-name
+  const nameInput = document.getElementById('new-class-name'); 
+  if(!nameInput || !nameInput.value) return;
 
-  // 1. Hitta knappen via eventet
+  // 2. Hämta knappen via eventet
   const e = window.event;
   const btn = e ? (e.target || e.srcElement) : null;
   
@@ -547,30 +548,26 @@ async function addClass() {
   }
 
   try {
-    // 2. Skicka anropet
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(classNameInput.value)}`);
-    const data = await res.json();
-    
-    cachedData = data;
+    // 3. Din original-fetch
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(nameInput.value)}`); 
+    cachedData = await res.json(); 
 
-    // 3. Återställ knappen precis innan omritning
+    // 4. Återställ knappen innan rendering för att undvika att den "fastnar"
     if (btn) {
       btn.innerText = originalText;
       btn.disabled = false;
     }
 
-    // 4. Uppdatera vyn och töm fältet
-    renderAdmin(cachedData);
-    classNameInput.value = "";
-
+    // 5. Rendera och töm fältet
+    renderAdmin(cachedData); 
+    nameInput.value = "";
   } catch (err) {
-    console.error("Fel vid addClass:", err);
-    // Återställ om anropet misslyckas
+    console.error(err);
     if (btn) {
       btn.innerText = originalText;
       btn.disabled = false;
     }
-    alert("Kunde inte skapa klassen.");
+    alert("Kunde inte lägga till klass");
   }
 }
 
