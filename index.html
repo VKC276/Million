@@ -457,49 +457,18 @@ if (isCompClosed) {
  
 
   async function update(pId, delta) {
-  // 1. Säkerhetskoll för starttid
-  const now = Date.now();
-  const startTime = new Date(cachedData.settings.startTime).getTime();
-  if (isCompClosed || (startTime && now < startTime)) {
-    alert("Tävlingen har inte startat än!");
-    return;
-  }
-
-  // 2. Hitta rätt knappsats dynamiskt
-  // Vi letar efter den div som innehåller onclick-anropet med just detta pId
-  const allBtnGroups = document.querySelectorAll('.btn-group');
-  let targetGroup = null;
-  
-  allBtnGroups.forEach(group => {
-    if (group.innerHTML.includes(`update('${pId}'`)) {
-      targetGroup = group;
-    }
-  });
-
-  // 3. Byt ut knapparna mot laddnings-text
-  if (targetGroup) {
-    targetGroup.innerHTML = `<span style="font-size:12px; color:var(--primary); font-weight:bold;">Sparar...</span>`;
-  }
-
-  try {
+    if (isCompClosed) return;
+    localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
+    if (!updateQueue[pId]) updateQueue[pId] = [];
+    updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
+    renderApp();
     const activeToken = token || new URLSearchParams(window.location.search).get('token');
-    const action = delta > 0 ? 'registerSend' : 'removeSend';
-    
-    const res = await fetch(`${API_URL}?action=${action}&token=${activeToken}&pId=${pId}`);
-    const data = await res.json();
-    
-    if (data.error) {
-      alert(data.error);
-      renderApp(); // Ritar om och återställer knapparna vid fel
-    } else {
-      cachedData = data;
-      renderApp(); // Succé! Hela vyn ritas om med nya poäng och knappar
+    while (updateQueue[pId].length > 0) {
+      const act = updateQueue[pId][0];
+      try { const res = await fetch(`${API_URL}?token=${activeToken}&action=${act}&pId=${pId}`); cachedData = await res.json(); updateQueue[pId].shift(); renderApp(); }
+      catch (e) { await new Promise(r => setTimeout(r, 2000)); }
     }
-  } catch (e) {
-    console.error(e);
-    renderApp(); // Återställ vid nätverksfel
   }
-}
 
   async function loadAdmin() {
     if(!adminPwd) adminPwd = prompt("Lösenord:");
@@ -534,19 +503,50 @@ if (isCompClosed) {
       </div>`).join('');
   }
 
-  async function saveSettings() { 
-    const btn = document.getElementById('btn-save-settings'); btn.innerText = "Sparar...";
-   const params = { 
-  action: 'updateSettings', 
-  compName: document.getElementById('adm-name').value, // NY RAD
-  pot: document.getElementById('adm-pot').value, 
-  refHeight: document.getElementById('adm-ref').value, 
-  start: document.getElementById('adm-start').value, 
-  end: document.getElementById('adm-end').value, 
-  compMode: document.getElementById('adm-mode').value 
-};
-    try { const res = await fetch(`${API_URL}?pwd=${adminPwd}&${new URLSearchParams(params)}`); cachedData = await res.json(); renderAdmin(cachedData); btn.innerText = "Sparat!"; setTimeout(() => { btn.innerText = "Spara"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
+async function saveSettings() {
+  const btn = document.querySelector('#view-admin button[onclick="saveSettings()"]');
+  if (!btn) return;
+
+  // 1. Spara gammal text och inaktivera knappen
+  const oldText = btn.innerText;
+  btn.innerText = "SPARAR...";
+  btn.disabled = true;
+  btn.style.opacity = "0.7";
+
+  const params = { 
+    action: 'updateSettings', 
+    pwd: ADMIN_PASSWORD,
+    compName: document.getElementById('adm-name').value, 
+    pot: document.getElementById('adm-pot').value, 
+    refHeight: document.getElementById('adm-ref').value, 
+    start: document.getElementById('adm-start').value, 
+    end: document.getElementById('adm-end').value, 
+    compMode: document.getElementById('adm-mode').value 
+  };
+
+  try {
+    const res = await fetch(`${API_URL}?${new URLSearchParams(params)}`);
+    const data = await res.json();
+    
+    if (data.error) {
+      alert("Fel: " + data.error);
+    } else {
+      // Visa att det lyckades kortvarigt
+      btn.innerText = "SPARAT!";
+      btn.style.background = "#27ae60"; // Grön färg
+      
+      setTimeout(() => {
+        cachedData = data; 
+        renderAdmin(data); // Detta återställer vyn och knappen
+      }, 1000);
+    }
+  } catch (e) {
+    alert("Kunde inte spara: " + e.message);
+    btn.innerText = oldText;
+    btn.disabled = false;
+    btn.style.opacity = "1";
   }
+}
 
   async function registerUser() {
     const btn = document.getElementById('btn-do-reg'), name = document.getElementById('reg-name').value, email = document.getElementById('reg-email').value, height = document.getElementById('reg-height').value, userClass = document.getElementById('reg-class').value;
