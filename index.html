@@ -454,19 +454,52 @@ if (isCompClosed) {
     });
   }
 
+ 
+
   async function update(pId, delta) {
-    if (isCompClosed) return;
-    localSends[pId] = Math.max(0, (localSends[pId] || 0) + delta);
-    if (!updateQueue[pId]) updateQueue[pId] = [];
-    updateQueue[pId].push(delta > 0 ? 'registerSend' : 'removeSend');
-    renderApp();
-    const activeToken = token || new URLSearchParams(window.location.search).get('token');
-    while (updateQueue[pId].length > 0) {
-      const act = updateQueue[pId][0];
-      try { const res = await fetch(`${API_URL}?token=${activeToken}&action=${act}&pId=${pId}`); cachedData = await res.json(); updateQueue[pId].shift(); renderApp(); }
-      catch (e) { await new Promise(r => setTimeout(r, 2000)); }
-    }
+  // 1. Säkerhetskoll för starttid
+  const now = Date.now();
+  const startTime = new Date(cachedData.settings.startTime).getTime();
+  if (isCompClosed || (startTime && now < startTime)) {
+    alert("Tävlingen har inte startat än!");
+    return;
   }
+
+  // 2. Hitta rätt knappsats dynamiskt
+  // Vi letar efter den div som innehåller onclick-anropet med just detta pId
+  const allBtnGroups = document.querySelectorAll('.btn-group');
+  let targetGroup = null;
+  
+  allBtnGroups.forEach(group => {
+    if (group.innerHTML.includes(`update('${pId}'`)) {
+      targetGroup = group;
+    }
+  });
+
+  // 3. Byt ut knapparna mot laddnings-text
+  if (targetGroup) {
+    targetGroup.innerHTML = `<span style="font-size:12px; color:var(--primary); font-weight:bold;">Sparar...</span>`;
+  }
+
+  try {
+    const activeToken = token || new URLSearchParams(window.location.search).get('token');
+    const action = delta > 0 ? 'registerSend' : 'removeSend';
+    
+    const res = await fetch(`${API_URL}?action=${action}&token=${activeToken}&pId=${pId}`);
+    const data = await res.json();
+    
+    if (data.error) {
+      alert(data.error);
+      renderApp(); // Ritar om och återställer knapparna vid fel
+    } else {
+      cachedData = data;
+      renderApp(); // Succé! Hela vyn ritas om med nya poäng och knappar
+    }
+  } catch (e) {
+    console.error(e);
+    renderApp(); // Återställ vid nätverksfel
+  }
+}
 
   async function loadAdmin() {
     if(!adminPwd) adminPwd = prompt("Lösenord:");
