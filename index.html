@@ -421,6 +421,12 @@ function showCurrentClassInCarousel() {
       isCompClosed = true;
     } else if (now < finalEnd) {
       targetTime = timeLeft;
+
+if (isCompClosed) {
+          isCompClosed = false;
+          renderApp(); 
+      }
+      
       if (now < end) {
         label = "Tävling pågår: ";
         bgColor = "var(--primary)";
