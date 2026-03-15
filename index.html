@@ -531,10 +531,50 @@ if (isCompClosed) {
     if(!email || email === 'Ingen e-post') return; btn.innerText = "...";
     try { const res = await fetch(`${API_URL}?action=requestLogin&name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&length=${length}&userClass=${encodeURIComponent(userClass)}`); btn.innerText = "Skickat!"; setTimeout(() => { btn.innerText = "✉️ Länk"; }, 2000); } catch (e) { btn.innerText = "Fel!"; }
   }
-  async function addClass() {
-    const nameInput = document.getElementById('new-class-name'); if(!nameInput.value) return;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(nameInput.value)}`); cachedData = await res.json(); renderAdmin(cachedData); nameInput.value = "";
+async function addClass() {
+  const classNameInput = document.getElementById('adm-class-name');
+  if(!classNameInput || !classNameInput.value) return;
+
+  // 1. Hitta knappen via eventet
+  const e = window.event;
+  const btn = e ? (e.target || e.srcElement) : null;
+  
+  let originalText = "";
+  if (btn) {
+    originalText = btn.innerText;
+    btn.innerText = "SKAPAR...";
+    btn.disabled = true;
   }
+
+  try {
+    // 2. Skicka anropet
+    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(classNameInput.value)}`);
+    const data = await res.json();
+    
+    cachedData = data;
+
+    // 3. Återställ knappen precis innan omritning
+    if (btn) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+
+    // 4. Uppdatera vyn och töm fältet
+    renderAdmin(cachedData);
+    classNameInput.value = "";
+
+  } catch (err) {
+    console.error("Fel vid addClass:", err);
+    // Återställ om anropet misslyckas
+    if (btn) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+    alert("Kunde inte skapa klassen.");
+  }
+}
+
+  
   async function deleteClass(btn, className) { if(confirm("Radera klass?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(className)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
 
   
