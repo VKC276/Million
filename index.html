@@ -540,42 +540,45 @@ if (isCompClosed) {
   
 
 async function addProblem() {
-  // 1. Hitta inputfälten (använder dina original-ID:n)
   const idInput = document.getElementById('new-p-id');
   const nameInput = document.getElementById('new-p-name');
-  
   if(!idInput || !idInput.value || !nameInput || !nameInput.value) return;
 
-  // 2. Hämta knappen via event-objektet (fungerar i alla moderna webbläsare)
   const e = window.event;
   const btn = e ? (e.target || e.srcElement) : null;
   
   let originalText = "";
   if (btn) {
     originalText = btn.innerText;
-    btn.innerText = "LÄGGER TILL...";
+    btn.innerText = "Lägger till...";
     btn.disabled = true;
   }
 
   try {
-    // 3. Skicka anropet (använder din original-logik)
     const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`);
-    cachedData = await res.json();
+    const data = await res.json(); // Vi döper om denna för att vara tydliga
     
-    // 4. Rendera om vyn (återställer knappen automatiskt)
-    renderAdmin(cachedData);
-    
-    // 5. Töm fälten
-    idInput.value = ""; 
-    nameInput.value = "";
-  } catch (err) {
-    console.error("Fel vid addProblem:", err);
-    // Om något går fel återställer vi knappen manuellt så den inte fastnar som grå
+    cachedData = data;
+
+    // MANUELL ÅTERSTÄLLNING: 
+    // Vi återställer knappen PRECIS innan vi ritar om, 
+    // så att templaten i renderAdmin inte ärver "disabled"-läget.
     if (btn) {
       btn.innerText = originalText;
       btn.disabled = false;
     }
-    alert("Kunde inte lägga till problem. Kontrollera anslutningen.");
+
+    renderAdmin(cachedData);
+    
+    idInput.value = ""; 
+    nameInput.value = "";
+  } catch (err) {
+    console.error(err);
+    if (btn) {
+      btn.innerText = originalText;
+      btn.disabled = false;
+    }
+    alert("Något gick fel.");
   }
 }
   
