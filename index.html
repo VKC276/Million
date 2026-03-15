@@ -541,6 +541,12 @@ function showCurrentClassInCarousel() {
       const res = await fetch(`${API_URL}?action=getClasses`); 
       const data = await res.json(); 
       if(data.classes) document.getElementById('reg-class').innerHTML = data.classes.map(c => `<option value="${c}">${c}</option>`).join('');
+
+if(data.settings && data.settings.compName) {
+      const regTitle = document.getElementById('reg-title');
+      if(regTitle) regTitle.innerText = data.settings.compName;
+    }
+      
       if(data.settings && data.settings.compMode) {
         const modeMap = {
           'open_hcp': 'Alla mot alla med handikapp',
