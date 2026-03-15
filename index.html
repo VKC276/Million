@@ -536,10 +536,33 @@ if (isCompClosed) {
     const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addClass&className=${encodeURIComponent(nameInput.value)}`); cachedData = await res.json(); renderAdmin(cachedData); nameInput.value = "";
   }
   async function deleteClass(btn, className) { if(confirm("Radera klass?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteClass&className=${encodeURIComponent(className)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
-  async function addProblem() {
-    const idInput = document.getElementById('new-p-id'), nameInput = document.getElementById('new-p-name'); if(!idInput.value || !nameInput.value) return;
-    const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=addProblem&pId=${encodeURIComponent(idInput.value)}&name=${encodeURIComponent(nameInput.value)}`); cachedData = await res.json(); renderAdmin(cachedData); idInput.value = ""; nameInput.value = "";
+
+  
+
+async function addProblem() {
+  const id = document.getElementById('adm-p-id').value;
+  const name = document.getElementById('adm-p-name').value;
+  if(!id || !name) return alert("Fyll i både ID och namn");
+
+  // Hitta knappen baserat på dess funktion
+  const btn = document.querySelector('button[onclick="addProblem()"]');
+  const originalText = btn.innerText;
+  
+  btn.innerText = "LÄGGER TILL...";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API_URL}?action=addProblem&pwd=${ADMIN_PASSWORD}&pId=${id}&name=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    cachedData = data;
+    renderAdmin(data); // Detta ritar om adminvyn och återställer knappen automatiskt
+  } catch (e) {
+    alert("Kunde inte lägga till problem");
+    btn.innerText = originalText;
+    btn.disabled = false;
   }
+}
+  
   async function deleteProblem(btn, pId) { if(confirm("Radera?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteProblem&pId=${encodeURIComponent(pId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function resetUser(btn, userId) { if(confirm("Nollställ?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=resetUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
   async function deleteUser(btn, userId) { if(confirm("Ta bort?")) { const res = await fetch(`${API_URL}?pwd=${adminPwd}&action=deleteUser&userId=${encodeURIComponent(userId)}`); cachedData = await res.json(); renderAdmin(cachedData); } }
