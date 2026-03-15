@@ -418,6 +418,7 @@ function showCurrentClassInCarousel() {
     if (now < new Date(cachedData.settings.startTime).getTime()) {
       label = "Tid till start: ";
       targetTime = new Date(cachedData.settings.startTime).getTime() - now;
+      isCompClosed = true;
     } else if (now < finalEnd) {
       targetTime = timeLeft;
       if (now < end) {
